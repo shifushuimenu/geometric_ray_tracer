@@ -1,0 +1,5 @@
+# Surface	 Stop flag	Radius of curvature (mm)	Thickness (mm)	Refractive index n_d	Abbe number V_d
+1	0	1.00E+10	100     	1		    1.00E+10
+2	1	72.296		14		    1.568729	6.31E+01
+3	0	767.817		100		    1		    1.00E+10
+
