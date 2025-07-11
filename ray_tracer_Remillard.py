@@ -42,17 +42,20 @@ def plot_ray_bundle(dists, ys):
         ax.set_xlim((np.sum(dists[0:2])-200, np.sum(dists)+10))
     
     # plot optical axis
-    plt.plot(xx, 0.0*np.ones_like(xx), "--")
+    ax.plot(xx, 0.0*np.ones_like(xx), "--")
 
     plt.show()
     
 
-def plot_ray(dists, ys):
+def plot_ray(dists, ys, fig=None):
 
     params = {"surfcolor" : "red"}
 
-    fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-    ax = fig.subplots(1,1)
+    if fig is None:
+        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
+        ax = fig.subplots(1,1)
+    else:
+        ax = fig.axes[0]
     # # object distance is negative, the lens system starts at z=0 
     # if (dists[0] < 1000):
     #     ax.axvline(x=-dists[0], color=params["surfcolor"])
@@ -78,9 +81,9 @@ def plot_ray(dists, ys):
         ax.set_xlim((np.sum(dists[0:2])-200, np.sum(dists)+10))
     
     # plot optical axis
-    plt.plot(xx, 0.0*np.ones_like(xx), "--")
+    ax.plot(xx, 0.0*np.ones_like(xx), "--")
 
-    plt.show()
+    return fig
 
 
 # SECTION 1:
@@ -137,32 +140,45 @@ num_fields = len(obj_height)
 
 # special case: first surface is the aperture stop
 
-y_cr = np.zeros(AS_surf+1)
-u_cr = np.zeros(AS_surf+1)
-y_cr[AS_surf] = 0.0
-du = 1e-8
-u_cr[AS_surf] = -0.003
+y_cr = np.zeros((AS_surf+1, num_fields))
+u_cr = np.zeros((AS_surf+1, num_fields))
 
-CHIEF_RAY_FOUND = False
-while(not CHIEF_RAY_FOUND):
-    u_cr[AS_surf] += du    
-    y_cr[AS_surf-1] = y_cr[AS_surf] + np.tan(u_cr[AS_surf])*t[AS_surf-1]
-    for s in range(AS_surf-1, 0, -1):        
-        u_cr[s] = (n[s+1] / n[s])*u_cr[s+1] - phi[s]*y_cr[s]/n[s]
-        y_cr[s-1] = y_cr[s] + np.tan(u_cr[s])*t[s-1]
+for f in range(num_fields):
+    print("field=", f)
+    y_cr[AS_surf,f] = 0.0
+    du = 1e-7
+    u_cr[AS_surf,f] = -0.003
 
-    CHIEF_RAY_FOUND =  np.isclose(y_cr[0], obj_height, atol=1e-5)    
+    CHIEF_RAY_FOUND = False
+    while(not CHIEF_RAY_FOUND):
+        u_cr[AS_surf,f] += du    
+        y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf,f])*t[AS_surf-1]
+        for s in range(AS_surf-1, 0, -1):        
+            u_cr[s,f] = (n[s+1] / n[s])*u_cr[s+1,f] - phi[s]*y_cr[s,f]/n[s]
+            y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s,f])*t[s-1]
 
-    # print("u_cr=", u_cr[AS_surf], "y_cr[0]=", y_cr[0])
+        CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-4)    
 
-EPL = max_obj_height/np.tan(u_cr[1])
+        # print("u_cr=", u_cr[AS_surf], "y_cr[0]=", y_cr[0])
+
+print(f"Chief ray launch angles:")
+for f in range(num_fields):
+    print(f"\t\t FIELD {f} u0={-u_cr[1,f]}")
+EPL = obj_height[0]/np.tan(u_cr[1,0])
 print(f"Entrance pupil location EPL={EPL}")
 print(f"Entrance pupil diameter EPD={EPD}")
 ObjNA = n[0]*np.sin(np.atan(EPD/(2*EPL)))
 print(f"Object-side numerical aperture ObjNA={ObjNA}")
 
-plot_ray(t, y_cr)
+# Having obtained the cheif ray launch angles, propagate a cone of 
+# rays around each chief angle.
 
+for f in range(num_fields):
+    if f==0:
+        fig = plot_ray(t, y_cr[:,f])
+    else:
+        fig = plot_ray(t, y_cr[:,f], fig)
+plt.show()
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0].
 nr = 5
