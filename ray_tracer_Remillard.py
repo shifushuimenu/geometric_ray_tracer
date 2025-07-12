@@ -7,82 +7,41 @@ https://www.youtube.com/watch?v=5962dgvPZCk
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
-def plot_ray_bundle(dists, ys):
-
-    nr = ys.shape[1]
-    #assert len(dists) == ys.shape[0]
-    params = {"surfcolor" : "red"}
-
-    fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-    ax = fig.subplots(1,1)
-    # # object distance is negative, the lens system starts at z=0 
-    # if (dists[0] < 1000):
-    #     ax.axvline(x=-dists[0], color=params["surfcolor"])
-    #     ax.text(-dists[0]-0.2, 0.0, "OBJECT", rotation=90, va="center")
-    l=0
-    ax.axvline(x=l, color=params["surfcolor"])
-    ax.text(-0.2, 0.0, "OBJECT", rotation=90, va="center")
-    for i in range(0, len(dists)):        
-        l += dists[i]
-        ax.axvline(x=l, color=params["surfcolor"])    
-
-    for r in range(nr):
-        l=0
-        xx = [l]           
-        yy = [ys[0,r]]     
-        for i in range(0, len(dists)):        
-            l += dists[i]
-            xx.append(l)
-            yy.append(ys[i+1,r])        
-
-        ax.plot(xx, yy, "o-")
-
-    if dists[0] > 200:
-        ax.set_xlim((np.sum(dists[0:2])-200, np.sum(dists)+10))
+mpl.rcParams["lines.linewidth"] = 1
     
-    # plot optical axis
-    ax.plot(xx, 0.0*np.ones_like(xx), "--")
-
-    plt.show()
-    
-
-def plot_ray(dists, ys, fig=None):
+def plot_ray(dists, ys, fig=None, color="red"):
 
     params = {"surfcolor" : "red"}
 
     if fig is None:
         fig = plt.figure("fig1", figsize=(6,6), layout="tight")
         ax = fig.subplots(1,1)
+        # plot optical axis
+        ax.axhline(y=0, color="k", linestyle="--")
+        # draw paraxial lens surfaces
+        l=-dists[0] # object distance is negative, lens system starts at z=0
+        ax.axvline(x=l, color=params["surfcolor"], linewidth=0.5)
+        ax.text(l-0.2, 0.0, "OBJECT", rotation=90, va="center")
+        for i in range(0, len(dists)):        
+            l += dists[i]
+            ax.axvline(x=l, color=params["surfcolor"])    
     else:
         ax = fig.axes[0]
-    # # object distance is negative, the lens system starts at z=0 
-    # if (dists[0] < 1000):
-    #     ax.axvline(x=-dists[0], color=params["surfcolor"])
-    #     ax.text(-dists[0]-0.2, 0.0, "OBJECT", rotation=90, va="center")
-    l=0
-    ax.axvline(x=l, color=params["surfcolor"])
-    ax.text(-0.2, 0.0, "OBJECT", rotation=90, va="center")
+    l=-dists[0]
+    zz = [l]           
+    yy = [ys[0]]     
     for i in range(0, len(dists)):        
         l += dists[i]
-        ax.axvline(x=l, color=params["surfcolor"])    
+        zz.append(l)
+        yy.append(ys[i+1])
 
-    l=0
-    xx = [l]           
-    yy = [ys[0]]     
-    for i in range(0, min(len(ys), len(dists))-1):        
-        l += dists[i]
-        xx.append(l)
-        yy.append(ys[i+1])        
+    ax.plot(zz, yy, "-", color=color, linewidth=1)
 
-    ax.plot(xx, yy, "o-")
-
-    if dists[0] > 200:
-        ax.set_xlim((np.sum(dists[0:2])-200, np.sum(dists)+10))
+    if dists[0] > 600:
+        ax.set_xlim(-10, np.sum(dists[1:]))
     
-    # plot optical axis
-    ax.plot(xx, 0.0*np.ones_like(xx), "--")
-
     return fig
 
 
@@ -114,6 +73,12 @@ for i in range(0, num_surfs):
     if i  > 0:
         phi[i] = (n[i] - n[i-1]) / R[i]  # surface power 
 
+# special case: first surface is the aperture stop
+if lens_layout[1,1] == 1:
+    AS_surf = 1
+    pass
+
+
 # Find the aperture stop and verify that there is only one aperture stop.
 found_AS = False
 for i in range(1, num_surfs):    
@@ -127,6 +92,8 @@ for i in range(1, num_surfs):
 if AS_surf == 0:
     raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
 
+print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from the front vertex.")
+
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
 
@@ -138,15 +105,13 @@ if AS_surf == 0:
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
-# special case: first surface is the aperture stop
-
 y_cr = np.zeros((AS_surf+1, num_fields))
 u_cr = np.zeros((AS_surf+1, num_fields))
 
 for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
-    du = 1e-7
+    du = 1e-6
     u_cr[AS_surf,f] = -0.003
 
     CHIEF_RAY_FOUND = False
@@ -164,40 +129,47 @@ for f in range(num_fields):
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
     print(f"\t\t FIELD {f} u0={-u_cr[1,f]}")
-EPL = obj_height[0]/np.tan(u_cr[1,0])
+EPL = obj_height[0]/np.tan(u_cr[1,0]) - t[0]
+for f in range(num_fields-1):
+    print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
 print(f"Entrance pupil location EPL={EPL}")
 print(f"Entrance pupil diameter EPD={EPD}")
 ObjNA = n[0]*np.sin(np.atan(EPD/(2*EPL)))
 print(f"Object-side numerical aperture ObjNA={ObjNA}")
 
-# Having obtained the cheif ray launch angles, propagate a cone of 
-# rays around each chief angle.
+
+
+# SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
+# with a cone of rays around each chief angle.
+nr = 5
+y = np.zeros((num_surfs+1, nr, num_fields))
+u = np.zeros((num_surfs, nr, num_fields))
 
 for f in range(num_fields):
-    if f==0:
-        fig = plot_ray(t, y_cr[:,f])
-    else:
-        fig = plot_ray(t, y_cr[:,f], fig)
+    y[0,:,f] = obj_height[f]
+    dt = (0.2/360.0)*2*np.pi
+    u[0,:,f] = np.array([-u_cr[1,f] - (nr//2)*dt + j*dt for j in range(nr)])
+
+    for r in range(nr):
+        y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[i]
+        for i in range(1, num_surfs):
+            # theta = y[i]/R[i]
+            # print("i=", i, "theta=", theta, "u[i-1]=", u[i-1])
+            # u[i] = np.asin(n[i-1]/n[i] * np.sin(u[i-1] + theta)) - theta
+            u[i,r,f] = ((n[i-1]/n[i])*u[i-1,r,f] - phi[i]*y[i,r,f]/n[i])
+            y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]    
+
+colors = ["blue", "green", "red"]
+
+for f in range(num_fields):
+    for r in range(nr):
+        if f==0 and r == 0:
+            fig = plot_ray(t, y[:,r,f], color=colors[f])
+        else:
+            fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
+
 plt.show()
 
-# SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0].
-nr = 5
-y = np.zeros((num_surfs+1, nr))
-u = np.zeros((num_surfs, nr))
-y[0, :] = 1.0
-dt = (1.0/360.0)*2*np.pi
-u[0, :] = [-(nr//2)*dt + j*dt for j in range(nr)]
-
-for r in range(nr):
-    y[1,r] = y[0,r] + np.tan(u[0,r])*t[i]
-    for i in range(1, num_surfs):
-        # theta = y[i]/R[i]
-        # print("i=", i, "theta=", theta, "u[i-1]=", u[i-1])
-        # u[i] = np.asin(n[i-1]/n[i] * np.sin(u[i-1] + theta)) - theta
-        u[i,r] = ((n[i-1]/n[i])*u[i-1,r] - phi[i]*y[i,r]/n[i])
-        y[i+1,r] = y[i,r] + np.tan(u[i,r])*t[i]    
-
-plot_ray_bundle(t, y)
 # SECTION 4: Calculate aberrations
 
 # SECTION 5: Plot
