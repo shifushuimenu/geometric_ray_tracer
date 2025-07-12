@@ -11,7 +11,7 @@ import matplotlib as mpl
 
 mpl.rcParams["lines.linewidth"] = 1
     
-def plot_ray(dists, ys, fig=None, color="red"):
+def plot_ray(dists, ys, fig=None, color="red", linewidth=1):
 
     params = {"surfcolor" : "red"}
 
@@ -37,7 +37,7 @@ def plot_ray(dists, ys, fig=None, color="red"):
         zz.append(l)
         yy.append(ys[i+1])
 
-    ax.plot(zz, yy, "-", color=color, linewidth=1)
+    ax.plot(zz, yy, "-", color=color, linewidth=linewidth)
 
     if dists[0] > 600:
         ax.set_xlim(-10, np.sum(dists[1:]))
@@ -112,7 +112,7 @@ for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
     du = 1e-6
-    u_cr[AS_surf,f] = -0.003
+    u_cr[AS_surf,f] = -0.003 - du
 
     CHIEF_RAY_FOUND = False
     while(not CHIEF_RAY_FOUND):
@@ -135,7 +135,23 @@ for f in range(num_fields-1):
 print(f"Entrance pupil location EPL={EPL}")
 print(f"Entrance pupil diameter EPD={EPD}")
 ObjNA = n[0]*np.sin(np.atan(EPD/(2*EPL)))
-print(f"Object-side numerical aperture ObjNA={ObjNA}")
+print(f"Object-side NA={ObjNA}")
+
+y_tmp = np.zeros((len(t)+1, num_fields))
+y_tmp[0:len(y_cr[:,0]), :] = y_cr[:,:]
+
+# Plot the chief rays
+for f in range(num_fields):
+    if f==0:
+        fig = plot_ray(t, y_tmp[:,f], color="orange", linewidth=2)
+    else:
+        fig = plot_ray(t, y_tmp[:,f], fig, color="orange", linewidth=2)
+
+# plt.show()
+
+
+# Having obtained the chief ray launch angles, propagate a cone of 
+# rays around each chief angle.
 
 
 
@@ -151,7 +167,7 @@ for f in range(num_fields):
     u[0,:,f] = np.array([-u_cr[1,f] - (nr//2)*dt + j*dt for j in range(nr)])
 
     for r in range(nr):
-        y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[i]
+        y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
         for i in range(1, num_surfs):
             # theta = y[i]/R[i]
             # print("i=", i, "theta=", theta, "u[i-1]=", u[i-1])
@@ -164,7 +180,7 @@ colors = ["blue", "green", "red"]
 for f in range(num_fields):
     for r in range(nr):
         if f==0 and r == 0:
-            fig = plot_ray(t, y[:,r,f], color=colors[f])
+            fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
         else:
             fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
 
