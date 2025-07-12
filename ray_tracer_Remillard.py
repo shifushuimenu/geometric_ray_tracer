@@ -79,7 +79,6 @@ if lens_layout[1,1] == 1:
     AS_surf = 1
     pass
 
-
 # Find the aperture stop and verify that there is only one aperture stop.
 found_AS = False
 for i in range(1, num_surfs):    
@@ -112,25 +111,25 @@ u_cr = np.zeros((AS_surf+1, num_fields))
 for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
-    du = 1e-8
-    u_cr[AS_surf,f] = -0.003 - du
+    du = 1e-6
+    u_cr[AS_surf-1,f] = -0.003 - du
 
     CHIEF_RAY_FOUND = False
     while(not CHIEF_RAY_FOUND):
-        u_cr[AS_surf,f] += du    
-        y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf,f])*t[AS_surf-1]
+        u_cr[AS_surf-1,f] += du    
+        y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for s in range(AS_surf-1, 0, -1):        
-            u_cr[s,f] = (n[s] / n[s-1])*u_cr[s+1,f] - phi[s]*y_cr[s,f]/n[s-1]
-            y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s,f])*t[s-1]
+            u_cr[s-1,f] = (n[s] / n[s-1])*u_cr[s,f] - phi[s]*y_cr[s,f]/n[s-1]
+            y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s-1,f])*t[s-1]
 
-        CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
+        CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-4)    
 
         # print("u_cr=", u_cr[AS_surf], "y_cr[0]=", y_cr[0])
 
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
     print(f"\t\t FIELD {f} u0={-u_cr[1,f]}")
-EPL = obj_height[0]/np.tan(u_cr[1,0]) - t[0]
+EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 for f in range(num_fields-1):
     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
 print(f"Entrance pupil location EPL={EPL}")
@@ -165,7 +164,7 @@ u = np.zeros((num_surfs, nr, num_fields))
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
     dt = (0.2/360.0)*2*np.pi
-    u[0,:,f] = np.array([-u_cr[1,f] - (nr//2)*dt + j*dt for j in range(nr)])
+    u[0,:,f] = np.array([-u_cr[0,f] - (nr//2)*dt + j*dt for j in range(nr)])
 
     for r in range(nr):
         y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
