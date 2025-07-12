@@ -23,10 +23,11 @@ def plot_ray(dists, ys, fig=None, color="red", linewidth=1):
         # draw paraxial lens surfaces
         l=-dists[0] # object distance is negative, lens system starts at z=0
         ax.axvline(x=l, color=params["surfcolor"], linewidth=0.5)
-        ax.text(l-0.2, 0.0, "OBJECT", rotation=90, va="center")
+        ax.text(l-0.4, 0.0, "OBJECT", rotation=90, va="center")
         for i in range(0, len(dists)):        
             l += dists[i]
-            ax.axvline(x=l, color=params["surfcolor"])    
+            ax.axvline(x=l, color=params["surfcolor"])
+        ax.text(l-0.2, 0.0, "IMAGE", rotation=90, va="center")
     else:
         ax = fig.axes[0]
     l=-dists[0]
@@ -111,7 +112,7 @@ u_cr = np.zeros((AS_surf+1, num_fields))
 for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
-    du = 1e-6
+    du = 1e-8
     u_cr[AS_surf,f] = -0.003 - du
 
     CHIEF_RAY_FOUND = False
@@ -119,10 +120,10 @@ for f in range(num_fields):
         u_cr[AS_surf,f] += du    
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf,f])*t[AS_surf-1]
         for s in range(AS_surf-1, 0, -1):        
-            u_cr[s,f] = (n[s+1] / n[s])*u_cr[s+1,f] - phi[s]*y_cr[s,f]/n[s]
+            u_cr[s,f] = (n[s] / n[s-1])*u_cr[s+1,f] - phi[s]*y_cr[s,f]/n[s-1]
             y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s,f])*t[s-1]
 
-        CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-4)    
+        CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
 
         # print("u_cr=", u_cr[AS_surf], "y_cr[0]=", y_cr[0])
 
