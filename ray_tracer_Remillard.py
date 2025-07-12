@@ -134,8 +134,10 @@ for f in range(num_fields-1):
     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
 print(f"Entrance pupil location EPL={EPL}")
 print(f"Entrance pupil diameter EPD={EPD}")
-ObjNA = n[0]*np.sin(np.atan(EPD/(2*EPL)))
+ObjNA = n[0]*np.sin(np.atan((EPD/2.0)/EPL))
 print(f"Object-side NA={ObjNA}")
+FOV = np.atan((obj_height[0]-y_cr[1,0])/t[1])
+print(f"Field of view FOV={FOV}")
 
 y_tmp = np.zeros((len(t)+1, num_fields))
 y_tmp[0:len(y_cr[:,0]), :] = y_cr[:,:]
