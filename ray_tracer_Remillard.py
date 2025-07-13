@@ -58,6 +58,7 @@ EPD = float(sys.argv[3])
 lens_layout = np.loadtxt(lens_file, comments="#", skiprows=1)
 num_surfs = lens_layout.shape[0]
 
+stop_flag = np.zeros(num_surfs)
 R = np.zeros(num_surfs)
 t = np.zeros(num_surfs)
 n = np.zeros(num_surfs)
@@ -66,25 +67,26 @@ phi = np.zeros(num_surfs)
 
 t[0] = lens_layout[0,3]
 AS_surf = 0
-for i in range(0, num_surfs):
-    R[i] = lens_layout[i, 2] 
-    t[i] = lens_layout[i, 3]
-    n[i] = lens_layout[i, 4]
-    V_d[i] = lens_layout[i, 5]
-    if i  > 0:
-        phi[i] = (n[i] - n[i-1]) / R[i]  # surface power 
+for s in range(0, num_surfs):
+    stop_flag[s] = lens_layout[s,1]
+    R[s] = lens_layout[s, 2] 
+    t[s] = lens_layout[s, 3]
+    n[s] = lens_layout[s, 4]
+    V_d[s] = lens_layout[s, 5]
+    if s  > 0:
+        phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
 
 # special case: first surface is the aperture stop
-if lens_layout[1,1] == 1:
+if stop_flag[1] == 1:
     AS_surf = 1
     pass
 
 # Find the aperture stop and verify that there is only one aperture stop.
 found_AS = False
-for i in range(1, num_surfs):    
-    if lens_layout[i,1] == 1:
+for s in range(1, num_surfs):    
+    if stop_flag[s] == 1:
         if not found_AS:
-            AS_surf = i
+            AS_surf = s
             found_AS = True
         else:
             raise ValueError("There can be only one aperture stop.")
@@ -128,16 +130,18 @@ for f in range(num_fields):
 
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
-    print(f"\t\t FIELD {f} u0={-u_cr[1,f]}")
+    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]}")
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
-for f in range(num_fields-1):
-    print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
-print(f"Entrance pupil location EPL={EPL}")
-print(f"Entrance pupil diameter EPD={EPD}")
-ObjNA = n[0]*np.sin(np.atan((EPD/2.0)/EPL))
-print(f"Object-side NA={ObjNA}")
-FOV = np.atan((obj_height[0]-y_cr[1,0])/t[1])
-print(f"Field of view FOV={FOV}")
+# for f in range(num_fields-1):
+#     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
+print(f"Entrance pupil location EPL = {EPL}")
+print(f"Entrance pupil diameter EPD = {EPD}")
+marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
+print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees")
+ObjNA = n[0]*np.sin(marginal_ray_angle)
+print(f"Object-side NA = {ObjNA}")
+FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
+print(f"Field of view FOV = {FOV}")
 
 y_tmp = np.zeros((len(t)+1, num_fields))
 y_tmp[0:len(y_cr[:,0]), :] = y_cr[:,:]
@@ -151,22 +155,17 @@ for f in range(num_fields):
 
 # plt.show()
 
-
-# Having obtained the chief ray launch angles, propagate a cone of 
-# rays around each chief angle.
-
-
-
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
-# with a cone of rays around each chief angle.
-nr = 5
+# with a cone of rays around each chief angle. For half the opening angle of the 
+# cone of rays we choose the marginal ray angle.
+nr = 5 # number of rays in a ray bundle for a given field
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
-    dt = (0.2/360.0)*2*np.pi
-    u[0,:,f] = np.array([-u_cr[0,f] - (nr//2)*dt + j*dt for j in range(nr)])
+    dtheta = 2*marginal_ray_angle/nr
+    u[0,:,f] = np.array([-u_cr[0,f] + (k-nr//2)*dtheta for k in range(nr)])
 
     for r in range(nr):
         y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
@@ -177,8 +176,34 @@ for f in range(num_fields):
             u[i,r,f] = ((n[i-1]/n[i])*u[i-1,r,f] - phi[i]*y[i,r,f]/n[i])
             y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]    
 
-colors = ["blue", "green", "red"]
+# The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
+stop_radius = y[AS_surf,nr-1,0]
+print(f"Stop Radius = {stop_radius}")
 
+# The heights of the outermost rays at each surface determine its clear aperture radius.
+heights = np.zeros(num_surfs)
+heights[0] = max_obj_height
+for s in range(1, num_surfs):
+    for f in range(num_fields):
+        for r in [0,nr-1]: # consider only outermost rays
+            hs = np.abs(y[s,r,f])
+            if (hs > heights[s]): 
+                heights[s] = hs
+    print(f"heights[{s}] = {heights[s]}")
+
+fh = open("lens_summary.txt", "w")
+header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abbe value V_d \t Clear Aperture [mm] \n"
+header+= "# ================================================================================================="
+print(header, file=fh)
+for s in range(num_surfs):
+    str = "%d \t %d \t %8.4e \t %12.6f \t %12.6f \t %12.6f \t %9.5f" % (s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s] )
+    print(str, file=fh)
+fh.close()
+
+# Calculate back focal length BFL, effective focal length EFL, back image distance BID, and total track length TTL.
+
+# SECTION 4: Plot
+colors = ["blue", "green", "red"]
 for f in range(num_fields):
     for r in range(nr):
         if f==0 and r == 0:
@@ -188,6 +213,5 @@ for f in range(num_fields):
 
 plt.show()
 
-# SECTION 4: Calculate aberrations
 
-# SECTION 5: Plot
+# SECTION 5: Calculate aberrations
