@@ -168,7 +168,7 @@ for f in range(num_fields):
         u_cr[AS_surf-1,f] += du    
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for s in range(AS_surf-1, 0, -1):        
-            u_cr[s-1,f] = (n[s] / n[s-1])*u_cr[s,f] - phi[s]*y_cr[s,f]/n[s-1]
+            u_cr[s-1,f] = np.arctan((n[s]/n[s-1])*np.tan(u_cr[s,f]) - phi[s]*y_cr[s,f]/n[s-1])
             y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s-1,f])*t[s-1]
 
         CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-4)    
@@ -220,7 +220,7 @@ for f in range(num_fields):
             # theta = y[i]/R[i]
             # print("i=", i, "theta=", theta, "u[i-1]=", u[i-1])
             # u[i] = np.asin(n[i-1]/n[i] * np.sin(u[i-1] + theta)) - theta
-            u[i,r,f] = ((n[i-1]/n[i])*u[i-1,r,f] - phi[i]*y[i,r,f]/n[i])
+            u[i,r,f] = np.arctan((n[i-1]/n[i])*np.tan(u[i-1,r,f]) - phi[i]*y[i,r,f]/n[i])
             y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]    
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
@@ -254,7 +254,9 @@ y_inf[0] = max_obj_height
 u_inf[0] = 0.0
 y_inf[1] = max_obj_height # trivial transfer
 for s in range(1, num_surfs):
-    u_inf[s] = (n[s-1]/n[s])*u_inf[s-1] - phi[s]*y_inf[s]/n[s]
+    # Replacing u -> tan(u) in the paraxial ray tracing equations leads to results 
+    # for EFL and BFL matching perfectly with Zemax Optics Studio.
+    u_inf[s] = np.arctan((n[s-1]/n[s])*np.tan(u_inf[s-1]) - phi[s]*y_inf[s]/n[s])
     y_inf[s+1] = y_inf[s] + np.tan(u_inf[s])*t[s]
 
 BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-2])
