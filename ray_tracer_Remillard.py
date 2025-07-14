@@ -46,6 +46,53 @@ def plot_ray(dists, ys, fig=None, color="red", linewidth=1):
     return fig
 
 
+def plot_surfaces(dists, Rs, heights, ns, fig=None):
+    """Plot spherical lens surfaces up to their clear apertures, which is given by heights[:]."""
+
+    # idenfity singlets, doublets and triplets so that the clear apertures of their
+    # surfaces can be combined into a lens
+    n_air = 1.00
+    nmat = (ns != n_air) # which segements are materials other than air ?
+    ymax = heights.copy()   
+    y_ = 0.0; multiplet_elements = 0
+    for i in range(1,len(heights)):        
+        if nmat[i]:
+            y_ = max(y_, heights[i])
+            multiplet_elements += 1
+        else:
+            ymax[i-multiplet_elements:i+1] = y_
+            y_ = 0.0; multiplet_elements = 0
+
+    if fig is None:
+        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
+        ax = fig.subplots(1,1)
+        # plot optical axis
+        ax.axhline(y=0, color="k", linestyle="--")
+
+    fig.axes[0].axis([-dists[0], np.sum(dists[1:]), -100, 100])
+    vertex = 0
+    lens_edges = []
+    for i in range(1, len(dists)):
+        if not np.isinf(Rs[i]):
+            zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(ymax[i]/Rs[i])**2))
+            zz = np.linspace(0, zmax, 100)
+            for pm in [+1,-1]:
+                yy = pm*np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
+                fig.axes[0].plot(vertex+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)
+                if pm == +1:
+                    lens_edges.append([vertex+np.sign(Rs[i])*zz[-1], yy[-1]])
+            if not nmat[i]:
+                print("lens_edges=", lens_edges)
+                for pm in [+1,-1]:
+                    fig.axes[0].plot([e[0] for e in lens_edges],
+                                     [pm*e[1] for e in lens_edges], 
+                                        color="k", linewidth=2)
+                lens_edges = []
+        vertex += dists[i]    
+    
+    return fig
+
+
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
 # Load txt file, determine the surface powers and locate the surface which 
@@ -103,7 +150,7 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 # are taken to have inifinite radial extent such that none acts as the actual aperture stop.
 
 # The chief ray is calculated for three object heights ("field positions" in optics jargon):
-# on axis, at 70% object height and at full object height.
+# at full object height, at 70% object height and on axis.
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
@@ -114,10 +161,10 @@ for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
     du = 1e-6
-    u_cr[AS_surf-1,f] = -0.003 - du
+    u_cr[AS_surf-1,f] = -0.0003 - du
 
     CHIEF_RAY_FOUND = False
-    while(not CHIEF_RAY_FOUND):
+    while(not CHIEF_RAY_FOUND and y_cr[0,f] < obj_height[f]):
         u_cr[AS_surf-1,f] += du    
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for s in range(AS_surf-1, 0, -1):        
@@ -130,7 +177,7 @@ for f in range(num_fields):
 
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
-    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]}")
+    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]} -> y0 = {y_cr[0,f]}")
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
 #     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
@@ -139,7 +186,7 @@ print(f"Entrance pupil diameter EPD = {EPD}")
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
 print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees")
 ObjNA = n[0]*np.sin(marginal_ray_angle)
-print(f"Object-side NA = {ObjNA}")
+print(f"Object Space NA = {ObjNA}")
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
 print(f"Field of view FOV = {FOV}")
 
@@ -149,9 +196,9 @@ y_tmp[0:len(y_cr[:,0]), :] = y_cr[:,:]
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray(t, y_tmp[:,f], color="orange", linewidth=2)
+        fig = plot_ray(t, y_tmp[:,f], color="orange", linewidth=4)
     else:
-        fig = plot_ray(t, y_tmp[:,f], fig, color="orange", linewidth=2)
+        fig = plot_ray(t, y_tmp[:,f], fig, color="orange", linewidth=4)
 
 # plt.show()
 
@@ -177,30 +224,50 @@ for f in range(num_fields):
             y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]    
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
-stop_radius = y[AS_surf,nr-1,0]
+stop_radius = np.abs(y[AS_surf,nr-1,0])
 print(f"Stop Radius = {stop_radius}")
 
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
-heights[0] = max_obj_height
+heights[0] = 0
 for s in range(1, num_surfs):
     for f in range(num_fields):
         for r in [0,nr-1]: # consider only outermost rays
             hs = np.abs(y[s,r,f])
             if (hs > heights[s]): 
                 heights[s] = hs
-    print(f"heights[{s}] = {heights[s]}")
+    # print(f"heights[{s}] = {heights[s]}")
 
 fh = open("lens_summary.txt", "w")
-header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abbe value V_d \t Clear Aperture [mm] \n"
-header+= "# ================================================================================================="
+header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abbe value V_d \t Clear Aperture Radius [mm] \n"
+header+= "# ================================================================================================================"
 print(header, file=fh)
 for s in range(num_surfs):
     str = "%d \t %d \t %8.4e \t %12.6f \t %12.6f \t %12.6f \t %9.5f" % (s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s] )
     print(str, file=fh)
-fh.close()
 
-# Calculate back focal length BFL, effective focal length EFL, back image distance BID, and total track length TTL.
+# Calculate the back focal length BFL, effective focal length EFL, back image distance BID, and total track length TTL.
+# To this end, trace a horizontal ray coming from infinity.
+y_inf = np.zeros(num_surfs+1)
+u_inf = np.zeros(num_surfs)
+y_inf[0] = max_obj_height
+u_inf[0] = 0.0
+y_inf[1] = max_obj_height # trivial transfer
+for s in range(1, num_surfs):
+    u_inf[s] = (n[s-1]/n[s])*u_inf[s-1] - phi[s]*y_inf[s]/n[s]
+    y_inf[s+1] = y_inf[s] + np.tan(u_inf[s])*t[s]
+
+BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-2])
+EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-2])
+
+# Calculate the BID from the intersection of the marginal rays of the on-axis ray bundle.
+BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-2,0,0]) - np.tan(u[num_surfs-2,nr-1,0]))
+TTL = np.sum(t[1:num_surfs-1])
+print(f"Back Focal Length BFL = {BFL} mm", file=fh)
+print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
+print(f"Back Image Distance BID = {BID} mm", file=fh)
+print(f"Total Track Length TTL = {TTL} mm", file=fh)
+fh.close()
 
 # SECTION 4: Plot
 colors = ["blue", "green", "red"]
@@ -211,7 +278,9 @@ for f in range(num_fields):
         else:
             fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
 
+# horizontal incoming ray
+fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
+plot_surfaces(t, R, heights, n, fig)
 plt.show()
-
 
 # SECTION 5: Calculate aberrations
