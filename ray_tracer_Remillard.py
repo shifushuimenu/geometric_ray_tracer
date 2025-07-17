@@ -52,7 +52,7 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
     # idenfity singlets, doublets and triplets so that the clear apertures of their
     # surfaces can be combined into a lens
     n_air = 1.00
-    nmat = (ns != n_air) # which segements are materials other than air ?
+    nmat = np.invert((np.isclose(ns, n_air, atol=1e-2)))  # Which segements are materials other than air ?
     ymax = heights.copy()   
     y_ = 0.0; multiplet_elements = 0
     for i in range(1,len(heights)):        
@@ -209,6 +209,10 @@ nr = 5 # number of rays in a ray bundle for a given field
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
+SAG = True
+z_sag = np.zeros((num_surfs, nr, num_fields))
+y_intersection = np.zeros((num_surfs, nr, num_fields))
+
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
     dtheta = 2*marginal_ray_angle/nr
@@ -217,11 +221,28 @@ for f in range(num_fields):
     for r in range(nr):
         y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
         for i in range(1, num_surfs):
-            # theta = y[i]/R[i]
-            # print("i=", i, "theta=", theta, "u[i-1]=", u[i-1])
-            # u[i] = np.asin(n[i-1]/n[i] * np.sin(u[i-1] + theta)) - theta
-            u[i,r,f] = np.arctan((n[i-1]/n[i])*np.tan(u[i-1,r,f]) - phi[i]*y[i,r,f]/n[i])
-            y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]    
+            if np.isinf(R[i]) or not SAG:
+                u[i,r,f] = np.arctan((n[i-1]/n[i])*np.tan(u[i-1,r,f]) - phi[i]*y[i,r,f]/n[i])
+                y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]   
+
+            else:
+                # take surface sag into account
+                y0 = y[i,r,f]
+                u0 = u[i-1,r,f]
+                # intersection with spherical surface
+                sgnR = np.sign(R[i]) # The formula depends on the sign of the radius of curvature.
+                Delta = R[i]**2 - 2*y0*np.tan(u0)*R[i] - y0**2
+                assert Delta > 0, "Delta < 0, %f"%(Delta)  
+                zp = (R[i] - y0*np.tan(u0) - sgnR*np.sqrt(Delta))/(1 + np.tan(u0)**2)
+                yp = y0 + np.tan(u0)*zp
+                theta = np.arctan(sgnR*yp/(R[i]-zp))
+                u_prime = sgnR*(np.arcsin(n[i-1]/n[i]*np.sin(theta + sgnR*u0)) - theta)
+
+                z_sag[i,r,f] = zp
+                y_intersection[i,r,f] = yp
+                u[i,r,f] = u_prime 
+                y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
+
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,nr-1,0])
