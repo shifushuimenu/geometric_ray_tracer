@@ -299,7 +299,7 @@ print(f"Total Track Length TTL = {TTL} mm", file=fh)
 fh.close()
 
 # SECTION 4: Plot
-colors = ["blue", "green", "red"]
+colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 for f in range(num_fields):
     for r in range(nr):
         fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
