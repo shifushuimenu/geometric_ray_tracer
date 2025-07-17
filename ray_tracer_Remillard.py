@@ -11,7 +11,7 @@ import matplotlib as mpl
 
 mpl.rcParams["lines.linewidth"] = 1
     
-def plot_ray(dists, ys, fig=None, color="red", linewidth=1):
+def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
 
     params = {"surfcolor" : "red"}
 
@@ -38,7 +38,11 @@ def plot_ray(dists, ys, fig=None, color="red", linewidth=1):
         zz.append(l)
         yy.append(ys[i+1])
 
-    ax.plot(zz, yy, "-", color=color, linewidth=linewidth)
+    zz = np.array(zz)
+    yy = np.array(yy)
+    if z_sag is None:
+        z_sag = np.zeros_like(zz)
+    ax.plot(zz+z_sag, yy, "-o", color=color, linewidth=linewidth)
 
     if dists[0] > 600:
         ax.set_xlim(-10, np.sum(dists[1:]))
@@ -75,7 +79,7 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
     for i in range(1, len(dists)):
         if not np.isinf(Rs[i]):
             zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(ymax[i]/Rs[i])**2))
-            zz = np.linspace(0, zmax, 100)
+            zz = np.linspace(0, zmax, 2000)
             for pm in [+1,-1]:
                 yy = pm*np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
                 fig.axes[0].plot(vertex+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)
@@ -210,7 +214,7 @@ y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
 SAG = True
-z_sag = np.zeros((num_surfs, nr, num_fields))
+z_sag = np.zeros((num_surfs+1, nr, num_fields))
 y_intersection = np.zeros((num_surfs, nr, num_fields))
 
 for f in range(num_fields):
@@ -231,15 +235,17 @@ for f in range(num_fields):
                 u0 = u[i-1,r,f]
                 # intersection with spherical surface
                 sgnR = np.sign(R[i]) # The formula depends on the sign of the radius of curvature.
-                Delta = R[i]**2 - 2*y0*np.tan(u0)*R[i] - y0**2
+                tanu0 = np.tan(u0)
+                Delta = R[i]**2 - 2*y0*tanu0*R[i] - y0**2
                 assert Delta > 0, "Delta < 0, %f"%(Delta)  
-                zp = (R[i] - y0*np.tan(u0) - sgnR*np.sqrt(Delta))/(1 + np.tan(u0)**2)
-                yp = y0 + np.tan(u0)*zp
+                zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)
+                yp = y0 + tanu0*zp
                 theta = np.arctan(sgnR*yp/(R[i]-zp))
                 u_prime = sgnR*(np.arcsin(n[i-1]/n[i]*np.sin(theta + sgnR*u0)) - theta)
 
                 z_sag[i,r,f] = zp
-                y_intersection[i,r,f] = yp
+                # y_intersection[i,r,f] = yp
+                y[i,r,f] = yp # reset to value at intersection point
                 u[i,r,f] = u_prime 
                 y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
 
@@ -296,10 +302,7 @@ fh.close()
 colors = ["blue", "green", "red"]
 for f in range(num_fields):
     for r in range(nr):
-        if f==0 and r == 0:
-            fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
-        else:
-            fig = plot_ray(t, y[:,r,f], fig, color=colors[f])
+        fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
