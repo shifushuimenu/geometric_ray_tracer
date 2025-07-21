@@ -157,7 +157,7 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 
 # The chief ray is calculated for three object heights ("field positions" in optics jargon):
 # at full object height, at 70% object height and on axis.
-obj_height = [max_obj_height] #, max_obj_height / np.sqrt(2.0), 0.0]
+obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
 y_cr = np.zeros((AS_surf+1, num_fields))
@@ -185,7 +185,11 @@ for f in range(num_fields):
                 y0 = y_cr[i,f]
                 u0 = u_cr[i,f]
                 # intersection with spherical surface
-                R_ = (-1)*R[i] # minus sign for ray tracing from right to left
+                # When ray tracing from right to left:
+                #   (A) Indices of refraction (before, after) are exchanged.
+                #   (B) The radius of curvature is inverted and all quantities are computed as if for that problem.
+                #   (C) The surface sag thus computed needs to be inverted. 
+                R_ = (-1)*R[i] # modification (B)
                 sgnR = np.sign(R_)
                 tanu0 = np.tan(u0)
                 Delta = R_**2 - 2*y0*tanu0*R_ - y0**2
@@ -193,16 +197,15 @@ for f in range(num_fields):
                 zp = (R_ - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                
                 yp = y0 + tanu0*zp 
                 theta = np.arctan(sgnR*yp/(R_-zp))
-                u_prime = sgnR*(np.arcsin(n[i]/n[i-1]*np.sin(theta + sgnR*u0)) - theta)                
+                u_prime = sgnR*(np.arcsin(n[i]/n[i-1]*np.sin(theta + sgnR*u0)) - theta)  # modification (A)         
 
-                z_sag_cr[i,f] = (-1)*zp # minus sign for ray tracing from right to left          
+                z_sag_cr[i,f] = (-1)*zp # modification (C)
                 y_cr[i,f] = yp # reset to value at intersection point
                 u_cr[i-1,f] = u_prime
                 y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
 
-    # print("u_cr=", u_cr[AS_surf], "y_cr[1]=", y_cr[1], "y_cr[0]=", y_cr[0])    
 
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
@@ -237,7 +240,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 1 #5 # number of rays in a ray bundle for a given field
+nr = 5 # number of rays in a ray bundle for a given field
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
