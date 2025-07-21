@@ -155,11 +155,14 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 
 # The chief ray is calculated for three object heights ("field positions" in optics jargon):
 # at full object height, at 70% object height and on axis.
-obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
+obj_height = [max_obj_height] #, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
 y_cr = np.zeros((AS_surf+1, num_fields))
 u_cr = np.zeros((AS_surf+1, num_fields))
+
+SAG = True
+z_sag_cr = np.zeros((AS_surf+1, num_fields))
 
 for f in range(num_fields):
     print("field=", f)
@@ -171,13 +174,33 @@ for f in range(num_fields):
     while(not CHIEF_RAY_FOUND and y_cr[0,f] < obj_height[f]):
         u_cr[AS_surf-1,f] += du    
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
-        for s in range(AS_surf-1, 0, -1):        
-            u_cr[s-1,f] = np.arctan((n[s]/n[s-1])*np.tan(u_cr[s,f]) - phi[s]*y_cr[s,f]/n[s-1])
-            y_cr[s-1,f] = y_cr[s,f] + np.tan(u_cr[s-1,f])*t[s-1]
+        for i in range(AS_surf-1, 0, -1):      
+            if np.isinf(R[i]) or not SAG:
+                u_cr[i-1,f] = np.arctan((n[i]/n[i-1])*np.tan(u_cr[i,f]) - phi[i]*y_cr[i,f]/n[i-1])
+                y_cr[i-1,f] = y_cr[i,f] + np.tan(u_cr[i-1,f])*t[i-1]
+
+            # take surface sag into account
+            else:
+                y0 = y_cr[i,f]
+                u0 = u_cr[i,f]
+                # intersection with spherical surface
+                sgnR = np.sign(R[i])
+                tanu0 = np.tan(u0)
+                Delta = R[i]**2 - 2*y0*tanu0*R[i] - y0**2
+                assert Delta > 0, "Delta < 0, %f"%(Delta)
+                zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                
+                yp = y0 + tanu0*zp
+                theta = np.arctan(sgnR*yp/(R[i]-zp))
+                u_prime = sgnR*(np.arcsin(n[i]/n[i-1]*np.sin(theta + sgnR*u0)) - theta)                
+
+                z_sag_cr[i,f] = zp                
+                y_cr[i,f] = yp # reset to value at intersection point
+                u_cr[i-1,f] = u_prime
+                y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
         CHIEF_RAY_FOUND =  np.isclose(y_cr[0,f], obj_height[f], atol=1e-4)    
 
-        # print("u_cr=", u_cr[AS_surf], "y_cr[0]=", y_cr[0])
+    print("u_cr=", u_cr[AS_surf], "y_cr[1]=", y_cr[1], "y_cr[0]=", y_cr[0])    
 
 print(f"Chief ray launch angles:")
 for f in range(num_fields):
@@ -195,21 +218,23 @@ FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
 print(f"Field of view FOV = {FOV}")
 
 y_tmp = np.zeros((len(t)+1, num_fields))
-y_tmp[0:len(y_cr[:,0]), :] = y_cr[:,:]
+y_tmp[0:len(y_cr[:,0]),:] = y_cr[:,:]
+z_sag_tmp = np.zeros((len(t)+1, num_fields))
+z_sag_tmp[0:len(z_sag_cr[:,0]),:] = z_sag_cr[:,:]
 
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray(t, y_tmp[:,f], color="orange", linewidth=4)
+        fig = plot_ray(t, y_tmp[:,f], z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
     else:
-        fig = plot_ray(t, y_tmp[:,f], fig, color="orange", linewidth=4)
+        fig = plot_ray(t, y_tmp[:,f], fig, z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
 
 # plt.show()
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 5 # number of rays in a ray bundle for a given field
+nr = 1 #5 # number of rays in a ray bundle for a given field
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
@@ -217,11 +242,13 @@ SAG = True
 z_sag = np.zeros((num_surfs+1, nr, num_fields))
 y_intersection = np.zeros((num_surfs, nr, num_fields))
 
+# loop over fields
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
     dtheta = 2*marginal_ray_angle/nr
     u[0,:,f] = np.array([-u_cr[0,f] + (k-nr//2)*dtheta for k in range(nr)])
 
+    # loop over rays in a ray bundle
     for r in range(nr):
         y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
         for i in range(1, num_surfs):
@@ -229,8 +256,8 @@ for f in range(num_fields):
                 u[i,r,f] = np.arctan((n[i-1]/n[i])*np.tan(u[i-1,r,f]) - phi[i]*y[i,r,f]/n[i])
                 y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]   
 
-            else:
-                # take surface sag into account
+            # take surface sag into account
+            else:                
                 y0 = y[i,r,f]
                 u0 = u[i-1,r,f]
                 # intersection with spherical surface
@@ -239,6 +266,7 @@ for f in range(num_fields):
                 Delta = R[i]**2 - 2*y0*tanu0*R[i] - y0**2
                 assert Delta > 0, "Delta < 0, %f"%(Delta)  
                 zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)
+                print("zp=", zp)            
                 yp = y0 + tanu0*zp
                 theta = np.arctan(sgnR*yp/(R[i]-zp))
                 u_prime = sgnR*(np.arcsin(n[i-1]/n[i]*np.sin(theta + sgnR*u0)) - theta)
@@ -249,6 +277,10 @@ for f in range(num_fields):
                 u[i,r,f] = u_prime 
                 y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
 
+# REMOVE
+print("phi=", phi[:])
+print("u[:,0,0]=", u[:,0,0])
+# REMOVE
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,nr-1,0])
