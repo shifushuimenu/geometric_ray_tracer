@@ -5,7 +5,7 @@ class ParaxialRaytracer(object):
         (yk   )  = (A B)  (y0   )
         (nk*uk)    (C D)  (n0*y0)
     """
-    version = 1.0
+    version = "0.0.1"
 
     def __init__(self, surfs):
         self.forward = True
@@ -60,7 +60,8 @@ class ParaxialRaytracer(object):
         return image_dist
     
     def is_conjugate(self, N):
-        return np.isclose(N[0,1], 0.0)
+        """Check whether an ABCD matrix N defines conjugate planes."""
+        return np.isclose(N[0,1], 0.0, atol=1e-8)
     
     def get_magnification(self):
         if self.is_conjugate(self.conjugate_matrix):
@@ -104,8 +105,9 @@ class GaussianRaytracer(ParaxialRaytracer):
     def __init__(self, surfs):
         super().__init__(surfs)
 
-    def propagate_Gaussian_beam(self, q):
-        assert np.iscomplex(q), "Gaussian beam parameter must be a complex number"
+    def propagate_Gaussian_beam(self, q0):
+        assert np.iscomplex(q0), "Gaussian beam parameter must be a complex number"
         A = self.system_matrix[0,0]; B = self.system_matrix[0,1]
         C = self.system_matrix[1,0]; D = self.system_matrix[1,1]
-        return (A*q + B) / (C*q + D)
+        q = (A*q0 + B) / (C*q0 + D)
+        return q
