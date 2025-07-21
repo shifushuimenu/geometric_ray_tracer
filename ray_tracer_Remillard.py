@@ -102,6 +102,8 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
 # Load txt file, determine the surface powers and locate the surface which 
 # is the aperture stop. Make sure there is only one aperture stop. 
 
+SAG = True
+
 lens_file = sys.argv[1]
 max_obj_height = float(sys.argv[2])
 EPD = float(sys.argv[3])
@@ -161,7 +163,6 @@ num_fields = len(obj_height)
 y_cr = np.zeros((AS_surf+1, num_fields))
 u_cr = np.zeros((AS_surf+1, num_fields))
 
-SAG = True
 z_sag_cr = np.zeros((AS_surf+1, num_fields))
 
 for f in range(num_fields):
@@ -240,7 +241,6 @@ nr = 1 #5 # number of rays in a ray bundle for a given field
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
-SAG = True
 z_sag = np.zeros((num_surfs+1, nr, num_fields))
 y_intersection = np.zeros((num_surfs, nr, num_fields))
 
