@@ -1,3 +1,7 @@
+# TODO:
+# - visualize: plot paraxial focus and principal planes 
+# - plot Gaussian intensity profile and beam waist as a function of z together with waist and divergence rays
+
 import numpy as np
 
 class ParaxialRaytracer(object):
@@ -36,22 +40,23 @@ class ParaxialRaytracer(object):
         return self.Tmat(image_dist) @ self.system_matrix @ self.Tmat(-object_dist)
             
     def Tmat(self, t, n=1.0):
-        """translation matrix
+        """Return ABCD translation matrix
         d - float:  distance to the right of the optical element"
         n - float:  index of refraction"""
         return np.array([[1.0, t/n],
                          [0.0, 1.0]], dtype=np.float64)
     def Rmat(self, phi):
-        """refraction matrix
+        """Return ABCD refraction matrix
         phi = 1/f - float: refractive power"""
         return np.array([[1.0,  0.0],
                          [-phi, 1.0]], dtype=np.float64)
     
     def Mmat(self, R, n=1.0):
-        """mirror matrix"""
+        """Return ABCD mirror matrix"""
         return self. Rmat(phi=-2.0*n/R)
     
     def get_image_distance(self, object_dist):
+        """The image distance as measured from the rightmost vertex V2 of the lens system."""
         assert object_dist < 0, "object distance should be a negative number"
         A = self.system_matrix[0,0]; B = self.system_matrix[0,1]
         C = self.system_matrix[1,0]; D = self.system_matrix[1,1]
@@ -111,3 +116,4 @@ class GaussianRaytracer(ParaxialRaytracer):
         C = self.system_matrix[1,0]; D = self.system_matrix[1,1]
         q = (A*q0 + B) / (C*q0 + D)
         return q
+    

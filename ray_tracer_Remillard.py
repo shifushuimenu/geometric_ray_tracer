@@ -1,3 +1,7 @@
+# TODO:
+# - speed up calculation of chief ray using binary search
+# - visualize aperture stop, entrance and exit pupil, chief rays and marginal rays
+
 """
 Ray tracer in paraxial approximation for finite conjugate system.
 
