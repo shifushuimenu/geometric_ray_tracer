@@ -77,7 +77,7 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
         # plot optical axis
         ax.axhline(y=0, color="k", linestyle="--")
 
-    fig.axes[0].axis([-dists[0], np.sum(dists[1:]), -100, 100])
+    fig.axes[0].axis([-dists[0], np.sum(dists[1:]), -max(ymax)-2.0, max(ymax)+2.0])
     vertex = 0
     lens_edges = []
     for i in range(1, len(dists)):
@@ -176,6 +176,7 @@ for f in range(num_fields):
     u_cr[AS_surf-1,f] = -0.0003 - du
 
     CHIEF_RAY_FOUND = False
+    print("determining chief ray launch angle")
     while(not CHIEF_RAY_FOUND and y_cr[0,f] < obj_height[f]):
         u_cr[AS_surf-1,f] += du    
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
@@ -218,8 +219,8 @@ for f in range(num_fields):
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
 #     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
-print(f"Entrance pupil location EPL = {EPL}")
-print(f"Entrance pupil diameter EPD = {EPD}")
+print(f"Entrance pupil position ENPP = {EPL}")
+print(f"Entrance pupil diameter ENPD = {EPD}")
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
 print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees")
 ObjNA = n[0]*np.sin(marginal_ray_angle)
@@ -242,9 +243,10 @@ for f in range(num_fields):
 # plt.show()
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
-# with a cone of rays around each chief angle. For half the opening angle of the 
+# with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 5 # number of rays in a ray bundle for a given field
+nr = 55 # number of rays in a ray bundle for a given field
+assert nr % 2 == 1
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
 
@@ -255,6 +257,7 @@ y_intersection = np.zeros((num_surfs, nr, num_fields))
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
     dtheta = 2*marginal_ray_angle/nr
+    # k=0 and k=nr-1 are the marginal rays, k=nr//2 is the chief ray of the ray bundle.
     u[0,:,f] = np.array([-u_cr[0,f] + (k-nr//2)*dtheta for k in range(nr)])
 
     # loop over rays in a ray bundle
@@ -306,8 +309,8 @@ header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abb
 header+= "# ================================================================================================================"
 print(header, file=fh)
 for s in range(num_surfs):
-    str = "%d \t %d \t %8.4e \t %12.6f \t %12.6f \t %12.6f \t %9.5f" % (s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s] )
-    print(str, file=fh)
+    line = "%d \t %d \t %8.4e \t %12.6f \t %12.6f \t %12.6f \t %9.5f" % (s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s] )
+    print(line, file=fh)
 
 # Calculate the back focal length BFL, effective focal length EFL, back image distance BID, and total track length TTL.
 # To this end, trace a horizontal ray coming from infinity.
@@ -322,17 +325,16 @@ for s in range(1, num_surfs):
     u_inf[s] = np.arctan((n[s-1]/n[s])*np.tan(u_inf[s-1]) - phi[s]*y_inf[s]/n[s])
     y_inf[s+1] = y_inf[s] + np.tan(u_inf[s])*t[s]
 
-BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-2])
-EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-2])
+BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-1])
+EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-1])
 
 # Calculate the BID from the intersection of the marginal rays of the on-axis ray bundle.
-BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-2,0,0]) - np.tan(u[num_surfs-2,nr-1,0]))
-TTL = np.sum(t[1:num_surfs-1])
+BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,nr-1,0]))
+TTL = np.sum(t[1:num_surfs])
 print(f"Back Focal Length BFL = {BFL} mm", file=fh)
 print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
 print(f"Back Image Distance BID = {BID} mm", file=fh)
 print(f"Total Track Length TTL = {TTL} mm", file=fh)
-fh.close()
 
 # SECTION 4: Plot
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
@@ -343,6 +345,46 @@ for f in range(num_fields):
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
 plot_surfaces(t, R, heights, n, fig)
+plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 plt.show()
 
 # SECTION 5: Calculate aberrations
+# Seidel coefficient for third-order monochromatic ray aberrations
+# Copy from Remillard's code
+CRI = np.zeros(num_surfs)
+MRI = np.zeros(num_surfs)
+L = np.zeros(num_surfs)
+S1 = np.zeros(num_surfs)
+S2 = np.zeros(num_surfs)
+S3 = np.zeros(num_surfs)
+S4 = np.zeros(num_surfs)
+S5 = np.zeros(num_surfs)
+PetzSum = 0.0
+for i in range(1,num_surfs):
+    MRI[i] = n[i-1]*(y[i,0,num_fields-1]/R[i] + np.tan(u[i-1,0,num_fields-1])) # marginal ray for the *on-axis* ray bundle
+    CRI[i] = n[i-1]*(y[i,nr//2,0]/R[i] + np.tan(u[i-1,nr//2,0])) # chief ray for the ray bundle *at maximum object* height 
+    L[i] = n[i-1]*(y[i,0,num_fields-1]*u[i-1,nr//2,0] - y[i,nr//2,0]*u[i-1,0,num_fields-1]) # Lagrange invariant for the above two rays
+    S1[i] = -MRI[i]*MRI[i]*y[i,0,num_fields-1]*(np.tan(u[i,0,num_fields-1])/n[i] - np.tan(u[i-1,0,num_fields-1])/n[i-1])
+    S2[i] = S1[i]*CRI[i]/MRI[i]
+    S3[i] = S2[i]*CRI[i]/MRI[i]
+    S4[i] = -L[i]*L[i]*((1/n[i]) - (1/n[i-1]))/R[i]
+    S5[i] = (S3[i] + S4[i])*CRI[i]/MRI[i]
+    PetzSum += (1/R[i])*((1/n[i]) - (1/n[i-1]))
+
+S1sum = np.sum(S1); S2sum = np.sum(S2); S3sum = np.sum(S3); S4sum = np.sum(S4); S5sum = np.sum(S5)
+PetzvalRadius = 1.0 / PetzSum
+
+with open("Seidel_coeffs.dat", "w") as fh:
+    print("# Petzval radius         :", PetzvalRadius, file=fh)
+    print("# Optical invariant      :", L[1], L[num_surfs//2], L[num_surfs-1], file=fh)
+    print(" ", file=fh)
+    print("# Seidel coefficients for third-order monochromatic ray aberrations (in units of mm)", file=fh)
+    print(str("#%8s" + " %16s "*5)%("Surf", "SPHA S1", "COMA S2", "ASTI S3", "FCUR S4", "DIST S5"), file=fh)
+    for i in range(1, num_surfs):
+        print(str("%8d" + " %16.8f "*5)%(i, S1[i], S2[i], S3[i], S4[i], S5[i]), file=fh)
+    print(str("#%7s" + " %16.8f "*5)%("TOT ", S1sum, S2sum, S3sum, S4sum, S5sum), file=fh)
+    print(" ", file=fh)
+    print("# Seidel coefficients (in units of waves)", file=fh)
+
+
+print("DONE")
