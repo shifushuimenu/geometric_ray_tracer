@@ -181,7 +181,10 @@ for f in range(num_fields):
     CHIEF_RAY_FOUND = False
     print("determining chief ray launch angle")
     while(not CHIEF_RAY_FOUND and y_cr[0,f] < obj_height[f]):
-        u_cr[AS_surf-1,f] += du    
+        # update launch angle using bisection search
+        # It is assumed that increasing the chief ray launch angle will 
+        # monotonically increase its height in object space.
+        u_cr[AS_surf-1,f] += du     
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for i in range(AS_surf-1, 0, -1):      
             if np.isinf(R[i]) or not SAG:
@@ -212,6 +215,7 @@ for f in range(num_fields):
                 u_cr[i-1,f] = u_prime
                 y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
+        # criterion whether chief ray has been found
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
 
 
