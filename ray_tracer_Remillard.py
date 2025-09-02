@@ -1,6 +1,9 @@
 # TODO:
-# - speed up calculation of chief ray using binary search
+# - speed up calculation of chief ray using binary search (DONE)
 # - visualize aperture stop, entrance and exit pupil, chief rays and marginal rays
+# - better selection of initial u_min and u_max which works for all lens systems
+# - chromatic aberrations, Seidel coefficiens in waves, additional quantities such as paraxial working F-number 
+# - input mode where the field of view is specified rather than maximum object height 
 
 """
 Ray tracer in paraxial approximation for finite conjugate system.
@@ -250,7 +253,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 5 # number of rays in a ray bundle for a given field
+nr = 55 # number of rays in a ray bundle for a given field
 assert nr % 2 == 1
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
