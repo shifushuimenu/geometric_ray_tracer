@@ -178,13 +178,18 @@ for f in range(num_fields):
     du = 1e-6
     u_cr[AS_surf-1,f] = -0.0003 - du
 
+    u_max = 0.4  # radians 
+    u_min = -0.4 #    
+
     CHIEF_RAY_FOUND = False
     print("determining chief ray launch angle")
-    while(not CHIEF_RAY_FOUND and y_cr[0,f] < obj_height[f]):
+    while(not CHIEF_RAY_FOUND): # and y_cr[0,f] < obj_height[f]):
         # update launch angle using bisection search
         # It is assumed that increasing the chief ray launch angle will 
         # monotonically increase its height in object space.
-        u_cr[AS_surf-1,f] += du     
+        u_middle = 0.5*(u_max + u_min)
+        print("u_middle=", u_middle)
+        u_cr[AS_surf-1,f] = u_middle   
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for i in range(AS_surf-1, 0, -1):      
             if np.isinf(R[i]) or not SAG:
@@ -216,8 +221,11 @@ for f in range(num_fields):
                 y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
         # criterion whether chief ray has been found
-        CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
-
+        CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
+        if y_cr[0,f] < obj_height[f]: 
+            u_min = u_middle 
+        else:
+            u_max = u_middle
 
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
@@ -244,7 +252,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 55 # number of rays in a ray bundle for a given field
+nr = 5 # number of rays in a ray bundle for a given field
 assert nr % 2 == 1
 y = np.zeros((num_surfs+1, nr, num_fields))
 u = np.zeros((num_surfs, nr, num_fields))
