@@ -211,22 +211,22 @@ for f in range(num_fields):
 
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
 
-
-print(f"Chief ray launch angles:")
+fh = open("lens_summary.txt", "w")
+print(f"Chief ray launch angles:", file=fh)
 for f in range(num_fields):
-    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]} -> y0 = {y_cr[0,f]}")
+    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]} -> y0 = {y_cr[0,f]}", file=fh)
 
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
 #     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
-print(f"Entrance pupil position ENPP = {EPL}")
-print(f"Entrance pupil diameter ENPD = {EPD}")
+print(f"Entrance pupil position ENPP = {EPL}", file=fh)
+print(f"Entrance pupil diameter ENPD = {EPD}", file=fh)
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
-print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees")
+print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
 ObjNA = n[0]*np.sin(marginal_ray_angle)
-print(f"Object Space NA = {ObjNA}")
+print(f"Object Space NA = {ObjNA}", file=fh)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
-print(f"Field of view FOV = {FOV}")
+print(f"Field of view FOV = {FOV}", file=fh)
 
 y_tmp = np.zeros((len(t)+1, num_fields))
 y_tmp[0:len(y_cr[:,0]),:] = y_cr[:,:]
@@ -291,7 +291,7 @@ for f in range(num_fields):
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,nr-1,0])
-print(f"Stop Radius = {stop_radius}")
+print(f"Stop Radius = {stop_radius}", file=fh)
 
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
@@ -304,7 +304,6 @@ for s in range(1, num_surfs):
                 heights[s] = hs
     # print(f"heights[{s}] = {heights[s]}")
 
-fh = open("lens_summary.txt", "w")
 header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abbe value V_d \t Clear Aperture Radius [mm] \n"
 header+= "# ================================================================================================================"
 print(header, file=fh)
@@ -335,6 +334,7 @@ print(f"Back Focal Length BFL = {BFL} mm", file=fh)
 print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
 print(f"Back Image Distance BID = {BID} mm", file=fh)
 print(f"Total Track Length TTL = {TTL} mm", file=fh)
+fh.close()
 
 # SECTION 4: Plot
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
@@ -363,7 +363,7 @@ PetzSum = 0.0
 for i in range(1,num_surfs):
     MRI[i] = n[i-1]*(y[i,0,num_fields-1]/R[i] + np.tan(u[i-1,0,num_fields-1])) # marginal ray for the *on-axis* ray bundle
     CRI[i] = n[i-1]*(y[i,nr//2,0]/R[i] + np.tan(u[i-1,nr//2,0])) # chief ray for the ray bundle *at maximum object* height 
-    L[i] = n[i-1]*(y[i,0,num_fields-1]*u[i-1,nr//2,0] - y[i,nr//2,0]*u[i-1,0,num_fields-1]) # Lagrange invariant for the above two rays
+    L[i] = n[i-1]*(y[i,0,num_fields-1]*np.tan(u[i-1,nr//2,0]) - y[i,nr//2,0]*np.tan(u[i-1,0,num_fields-1])) # Lagrange invariant for the above two rays
     S1[i] = -MRI[i]*MRI[i]*y[i,0,num_fields-1]*(np.tan(u[i,0,num_fields-1])/n[i] - np.tan(u[i-1,0,num_fields-1])/n[i-1])
     S2[i] = S1[i]*CRI[i]/MRI[i]
     S3[i] = S2[i]*CRI[i]/MRI[i]
