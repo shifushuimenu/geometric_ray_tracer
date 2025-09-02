@@ -211,22 +211,14 @@ for f in range(num_fields):
 
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)    
 
-fh = open("lens_summary.txt", "w")
-print(f"Chief ray launch angles:", file=fh)
-for f in range(num_fields):
-    print(f"\t\t FIELD {f} u0 = {-u_cr[1,f]} -> y0 = {y_cr[0,f]}", file=fh)
 
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
 #     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
-print(f"Entrance pupil position ENPP = {EPL}", file=fh)
-print(f"Entrance pupil diameter ENPD = {EPD}", file=fh)
+
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
-print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
 ObjNA = n[0]*np.sin(marginal_ray_angle)
-print(f"Object Space NA = {ObjNA}", file=fh)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
-print(f"Field of view FOV = {FOV}", file=fh)
 
 y_tmp = np.zeros((len(t)+1, num_fields))
 y_tmp[0:len(y_cr[:,0]),:] = y_cr[:,:]
@@ -291,8 +283,6 @@ for f in range(num_fields):
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,nr-1,0])
-print(f"Stop Radius = {stop_radius}", file=fh)
-
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
 heights[0] = 0
@@ -303,13 +293,6 @@ for s in range(1, num_surfs):
             if (hs > heights[s]): 
                 heights[s] = hs
     # print(f"heights[{s}] = {heights[s]}")
-
-header = "# Surface \t Stop Flag \t Radius  [mm] \t Thickness [mm] \t n_d \t Abbe value V_d \t Clear Aperture Radius [mm] \n"
-header+= "# ================================================================================================================"
-print(header, file=fh)
-for s in range(num_surfs):
-    line = "%d \t %d \t %8.4e \t %12.6f \t %12.6f \t %12.6f \t %9.5f" % (s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s] )
-    print(line, file=fh)
 
 # Calculate the back focal length BFL, effective focal length EFL, back image distance BID, and total track length TTL.
 # To this end, trace a horizontal ray coming from infinity.
@@ -330,11 +313,6 @@ EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-1])
 # Calculate the BID from the intersection of the marginal rays of the on-axis ray bundle.
 BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,nr-1,0]))
 TTL = np.sum(t[1:num_surfs])
-print(f"Back Focal Length BFL = {BFL} mm", file=fh)
-print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
-print(f"Back Image Distance BID = {BID} mm", file=fh)
-print(f"Total Track Length TTL = {TTL} mm", file=fh)
-fh.close()
 
 # SECTION 4: Plot
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
@@ -374,17 +352,39 @@ for i in range(1,num_surfs):
 S1sum = np.sum(S1); S2sum = np.sum(S2); S3sum = np.sum(S3); S4sum = np.sum(S4); S5sum = np.sum(S5)
 PetzvalRadius = 1.0 / PetzSum
 
-with open("Seidel_coeffs.dat", "w") as fh:
-    print("# Petzval radius         :", PetzvalRadius, file=fh)
-    print("# Optical invariant      :", L[1], L[num_surfs//2], L[num_surfs-1], file=fh)
+# SECTION 6: Output 
+with open("lens_summary.txt", "w") as fh:
+    header = str("#"+str("%12s"*2)+str("%22s"*3)+str("%26s"*2)+"\n")%("Surface","Stop Flag", "Radius  [mm]", "Thickness [mm]", "n_d", "Abbe value V_d", "Clear Semidiameter [mm]")
+    header+= str("# "+str("="*(12*2+22*3+26*2)))
+    print(header, file=fh)
+    for s in range(num_surfs):
+        print("%12d %12d %21.4e %21.6f %21.6f %25.6f %25.5f"%(s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s]), file=fh)
     print(" ", file=fh)
-    print("# Seidel coefficients for third-order monochromatic ray aberrations (in units of mm)", file=fh)
-    print(str("#%8s" + " %16s "*5)%("Surf", "SPHA S1", "COMA S2", "ASTI S3", "FCUR S4", "DIST S5"), file=fh)
+    print(f"Chief ray launch angles:", file=fh)
+    for f in range(num_fields):
+        print(f"\t\t FIELD {f} u0 = {-u_cr[0,f]*360/(2*np.pi)} degrees  -> y0 = {y_cr[0,f]} mm", file=fh)
+    print(f"Entrance pupil position ENPP = {EPL} mm", file=fh)
+    print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
+    print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
+    print(f"Object Space NA = {ObjNA}", file=fh)
+    print(f"Field of view FOV = {FOV}", file=fh)
+    print(f"Stop Radius = {stop_radius}", file=fh)
+    print(f"Back Focal Length BFL = {BFL} mm", file=fh)
+    print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
+    print(f"Back Image Distance BID = {BID} mm", file=fh)
+    print(f"Total Track Length TTL = {TTL} mm", file=fh)
+    print(" ", file=fh)
+    print("Aberrations:", file=fh)
+    print(" ", file=fh)
+    print("Petzval radius         :", PetzvalRadius, file=fh)
+    print("Optical invariant      :", L[1], L[num_surfs//2], L[num_surfs-1], file=fh)
+    print(" ", file=fh)
+    print("Seidel coefficients for third-order monochromatic ray aberrations (in units of mm)", file=fh)
+    print(str("%8s" + " %16s "*5)%("Surf", "SPHA S1", "COMA S2", "ASTI S3", "FCUR S4", "DIST S5"), file=fh)
     for i in range(1, num_surfs):
         print(str("%8d" + " %16.8f "*5)%(i, S1[i], S2[i], S3[i], S4[i], S5[i]), file=fh)
-    print(str("#%7s" + " %16.8f "*5)%("TOT ", S1sum, S2sum, S3sum, S4sum, S5sum), file=fh)
+    print(str("%8s" + " %16.8f "*5)%("TOT ", S1sum, S2sum, S3sum, S4sum, S5sum), file=fh)
     print(" ", file=fh)
-    print("# Seidel coefficients (in units of waves)", file=fh)
-
+    print("Seidel coefficients (in units of waves)", file=fh)
 
 print("DONE")
