@@ -175,12 +175,9 @@ z_sag_cr = np.zeros((AS_surf+1, num_fields))
 for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
-    du = 1e-6
-    u_cr[AS_surf-1,f] = -0.0003 - du
 
     u_max = 0.4  # radians 
     u_min = -0.4 #    
-
     CHIEF_RAY_FOUND = False
     print("determining chief ray launch angle")
     while(not CHIEF_RAY_FOUND): # and y_cr[0,f] < obj_height[f]):
@@ -222,6 +219,7 @@ for f in range(num_fields):
 
         # criterion whether chief ray has been found
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
+        # update bracketing interval for binary search
         if y_cr[0,f] < obj_height[f]: 
             u_min = u_middle 
         else:
