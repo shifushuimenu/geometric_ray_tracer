@@ -65,7 +65,10 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
     y_ = 0.0; multiplet_elements = 0
     for i in range(1,len(heights)):        
         if nmat[i]:
-            y_ = max(y_, heights[i])
+            if i <= len(heights)-2:
+                y_ = max(y_, heights[i], heights[i+1])
+            else:
+                y_ = max(y_, heights[i])
             multiplet_elements += 1
         else:
             ymax[i-multiplet_elements:i+1] = y_
