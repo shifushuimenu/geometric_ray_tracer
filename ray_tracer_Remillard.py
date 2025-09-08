@@ -3,7 +3,8 @@
 # - visualize aperture stop, entrance and exit pupil, chief rays and marginal rays
 # - better selection of initial u_min and u_max which works for all lens systems
 # - chromatic aberrations, Seidel coefficiens in waves, additional quantities such as paraxial working F-number 
-# - input mode where the field of view is specified rather than maximum object height 
+# - input mode where the field of view is specified rather than maximum object height
+# - ray fan plot at the paraxial image plane
 
 """
 Ray tracer in paraxial approximation for finite conjugate system.
@@ -107,11 +108,25 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
     return fig
 
 
+def generate_ray_fan_plot(y_ray_fan: np.array, pupil_surf: int, ymax_pupil: float, image_surf: int):
+    """
+    y_ray_fan[surf, ray, field]
+    """
+    num_fields = len(y_ray_fan[1,1,:])
+    fig, axs = plt.subplots(nrows=1, ncols=num_fields)
+    for f in range(num_fields):
+        y_pupil_norm = y_ray_fan[pupil_surf, :, f]/ymax_pupil # normalized entrance pupil coordinate
+        y_imag = y_ray_fan[image_surf, :, f] # y-coordinate in the image plane
+        axs[f].plot(y_pupil_norm, y_imag, '-o')
+    plt.show()
+
+
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
 # Load txt file, determine the surface powers and locate the surface which 
 # is the aperture stop. Make sure there is only one aperture stop. 
 
+# Take surface sag into account.
 SAG = True
 
 lens_file = sys.argv[1]
@@ -296,6 +311,10 @@ for f in range(num_fields):
                 u[i,r,f] = u_prime 
                 y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
 
+
+# plt.show()
+# generate_ray_fan_plot(y, AS_surf, 1.0, num_surfs)
+# exit(1)
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,nr-1,0])
