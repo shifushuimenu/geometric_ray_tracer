@@ -1,3 +1,6 @@
+# TODO: Use TableModel to format entries
+# https://www.pythonguis.com/tutorials/pyqt6-qtableview-modelviews-numpy-pandas/
+
 import os
 import sys
 import numpy as np # IMPROVE: don't use numpy
@@ -23,6 +26,12 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import QSize, Qt
+
+
+# Formatting routines 
+float_as_str = lambda x: str("%20.4f"%(x))
+str_as_float = lambda x: float(x) if x != "---" else 0
+
 
 class LensEditor(QMainWindow):
 
@@ -65,15 +74,23 @@ class LensEditor(QMainWindow):
         add_config_action.triggered.connect(self.add_lens_configuration)
         configsMenu.addAction(add_config_action)
         toolsMenu = menuBar.addMenu("Handy &Tools")
-        autofocus_action = QAction(QIcon(), "&Autofocus", self)
+        autofocus_action = QAction(QIcon(), "Paraxial &Autofocus", self)
+        defocus_action = QAction(QIcon(), "&Defocus to CLC", self)
         make_symmetric_action = QAction(QIcon(), "&Make symmetric", self)
-        paraxial_fieldflattener_action = QAction(QIcon(), "&Paraxial field flattener", self)
         toolsMenu.addAction(autofocus_action)
+        toolsMenu.addAction(defocus_action)
         toolsMenu.addAction(make_symmetric_action)
-        toolsMenu.addAction(paraxial_fieldflattener_action)
+        insertMenu = toolsMenu.addMenu("&Insert")
+        insert_field_flattener_action = QAction(QIcon(), "&Paraxial field flattener", self)   
+        insert_field_lens_action = QAction(QIcon(), "&Field lens", self)
+        insertMenu.addAction(insert_field_flattener_action)
+        insertMenu.addAction(insert_field_lens_action)
         helpMenu = menuBar.addMenu("&Help")
         open_docs_action = QAction(QIcon(), "Open &Documentation", self)
         helpMenu.addAction(open_docs_action)
+
+        # insert field lens 
+        # show pupils and stops
     
     def create_toolbar(self):
         """Create the main toolbar"""
@@ -245,8 +262,10 @@ class ConfigTabs(QWidget):
                 else:
                     stop_flag = 0
                 # IMPROVE with complete format string 
+                entries = [str_as_float(current_tab.table.item(row, i).data(0)) for i in range(2, current_tab.table.columnCount())]
+                print("entries=", entries)
                 fh.write(str("%5d %10d       " + "%18.8e     "*(current_tab.table.columnCount()-2) + "\n")
-                         %((row, stop_flag)+tuple([float(current_tab.table.item(row, i).data(0)) for i in range(2, current_tab.table.columnCount())])))
+                         %((row, stop_flag)+tuple(entries)))
 
 
     def addNewConfig(self):
@@ -275,6 +294,7 @@ class LensEditorConfigBase(QWidget):
         - minimum of three rows: OBJ, STOP, IMAG
         - a context menu for adding and removing rows and changing the location of the aperture STOP
     """
+    
     def __init__(self, *args, **kwargs):
         super().__init__()
 
@@ -283,20 +303,20 @@ class LensEditorConfigBase(QWidget):
         self.table.setColumnCount(len(self.header_labels))        
         self.table.setHorizontalHeaderLabels(self.header_labels)
         self.table.setRowCount(3)        
-        self.table.setItem(0, 0, QTableWidgetItem('OBJ'))
-        for i, entry in enumerate([0, np.inf, 0.0, 1.0, np.inf, 0.0]):
+        self.table.setItem(0, 0, QTableWidgetItem('OBJ'))        
+        for i, entry in enumerate(["0", np.inf, 0.0, 1.0, np.inf, 0.0]):
             cell = QTableWidgetItem()
-            cell.setData(Qt.ItemDataRole.EditRole, float(entry))
+            cell.setData(Qt.ItemDataRole.EditRole, float_as_str(entry) if type(entry)==float else str(entry))
             self.table.setItem(0, i+1, cell)
         self.table.setItem(1, 0, QTableWidgetItem('STOP'))                            
-        for i, entry in enumerate([1, np.inf, 0.0, 1.0, np.inf, 0.0]):
+        for i, entry in enumerate(["1", np.inf, 0.0, 1.0, np.inf, 0.0]):
             cell = QTableWidgetItem()
-            cell.setData(Qt.ItemDataRole.EditRole, float(entry))
+            cell.setData(Qt.ItemDataRole.EditRole, float_as_str(entry) if type(entry)==float else str(entry))
             self.table.setItem(1, i+1, cell)
         self.table.setItem(2, 0, QTableWidgetItem('IMAG'))            
-        for i, entry in enumerate([0, np.inf, "---", "---", "---", 0.0]):
+        for i, entry in enumerate(["0", np.inf, "---", "---", "---", 0.0]):
             cell = QTableWidgetItem()
-            cell.setData(Qt.ItemDataRole.EditRole, float(entry) if type(entry) == float else str(entry))
+            cell.setData(Qt.ItemDataRole.EditRole, float_as_str(entry) if type(entry) == float else str(entry))
             self.table.setItem(2, i+1, cell)
 
 
@@ -339,15 +359,16 @@ class LensEditorConfigBase(QWidget):
         if row < self.table.rowCount()-1:
             self.table.insertRow(row+1)
             self.table.setItem(row+1, 0, QTableWidgetItem('Spherical'))
-            for i, entry in enumerate([0, np.inf, 0.0, 1.0, np.inf, 0.0]):
+            for i, entry in enumerate(["0", np.inf, 0.0, 1.0, np.inf, 0.0]):
                 cell = QTableWidgetItem()
-                cell.setData(Qt.ItemDataRole.EditRole, float(entry))
+                cell.setData(Qt.ItemDataRole.EditRole, float_as_str(entry) if type(entry)==float else str(entry))
                 self.table.setItem(row+1, i+1, cell)
             # If the row was inserted above the stop, the index of the stop surface 
             # needs to be incremented by one.
             if row < self.stop_surface:
                 self.stop_surface += 1
         else:
+
             raise Warning("Cannot insert surface after IMAG")
     
     def remove_row_action_handler(self):
