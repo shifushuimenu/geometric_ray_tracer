@@ -1,5 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt 
+from time import time
+
+
+def timer_func(func):
+    # This function shows the execution time of 
+    # the function object passed
+    def wrap_func(*args, **kwargs):
+        t1 = time()
+        result = func(*args, **kwargs)
+        t2 = time()
+        print(f'Function {func.__name__!r} executed in {(t2-t1):.4f}s')
+        return result
+    return wrap_func
+
 
 def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
 
@@ -88,3 +102,39 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
         vertex += dists[i]
     
     return fig
+
+
+@timer_func
+def intersection_with_surface(ray_bundle, zS):
+    '''
+    ray_bundle : a tuple (P_intersect[0:3,0:num_rays], ravecs[0:3,0:num_rays])
+    zS : float, the position of the surface orthogonal to the optical axis
+    '''
+    P_intersect, rayvecs = ray_bundle
+    assert P_intersect.shape == rayvecs.shape
+    zz = ((zS - P_intersect[2,:])/rayvecs[2,:])
+    P = P_intersect.copy()
+    P[2,:] = zS
+    P[0:2,:] = P[0:2,:] + zz*rayvecs[0:2,:]
+
+    return P
+
+
+@timer_func
+def intersection_with_surface_v2(ray_bundle, zS):
+    '''
+    ray_bundle : a tuple (P_intersect[0:3,0:num_rays], ravecs[0:3,0:num_rays])
+    zS : float, the position of the surface orthogonal to the optical axis
+    '''
+    P_intersect, rayvecs = ray_bundle
+    num_rays = rayvecs.shape[1]
+    intersection_points = np.zeros((3, num_rays))
+    for r in range(num_rays):
+        zz = ((zS - P_intersect[2,r])/rayvecs[2,r])
+        x_is = P_intersect[0,r] + zz*rayvecs[0,r]
+        y_is = P_intersect[1,r] + zz*rayvecs[1,r]
+        z_is = zS
+        intersection_points[0:3,r] = np.array([x_is, y_is, z_is])
+
+    return intersection_points
+

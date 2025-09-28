@@ -79,11 +79,14 @@ obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
 num_rays = 55 # number of rays per ray fan
+num_azimuth = 5 # rotate fay fan around chief ray, split interval [0,pi] into num_azimuth+1 different angles
+dg3 = np.pi/(num_azimuth+1)
 
 # ===========================================================================================================================
 P_intersect = np.zeros((3,num_surfs+1,num_rays,num_fields))
 rayvecs = np.zeros((3,num_surfs+1,num_rays,num_fields))
 # Launch a non-meridional ray fan 
+print("raytrace non-meridional rays")
 # with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
 # and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
 gamma1 = -0.02  # inclination angle (in radians) of the ray bundle 
@@ -93,8 +96,6 @@ for f in range(num_fields):
     for r, gamma2 in enumerate([(k-num_rays//2)*dg2 for k in range(num_rays)]):
         P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
         rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2), -sin(gamma1)*cos(gamma2), cos(gamma1)*cos(gamma2)])
-
-print("raytrace non-meridional rays")
 P_intersect, rayvecs = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs)
 # ===========================================================================================================================
 
