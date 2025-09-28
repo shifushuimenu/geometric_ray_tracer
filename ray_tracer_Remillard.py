@@ -108,19 +108,6 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
     return fig
 
 
-def generate_ray_fan_plot(y_ray_fan: np.array, pupil_surf: int, ymax_pupil: float, image_surf: int):
-    """
-    y_ray_fan[surf, ray, field]
-    """
-    num_fields = len(y_ray_fan[1,1,:])
-    fig, axs = plt.subplots(nrows=1, ncols=num_fields)
-    for f in range(num_fields):
-        y_pupil_norm = y_ray_fan[pupil_surf, :, f]/ymax_pupil # normalized entrance pupil coordinate
-        y_imag = y_ray_fan[image_surf, :, f] # y-coordinate in the image plane
-        axs[f].plot(y_pupil_norm, y_imag, '-o')
-    plt.show()
-
-
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
 # Load txt file, determine the surface powers and locate the surface which 
@@ -268,23 +255,23 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 55 # number of rays in a ray bundle for a given field
-assert nr % 2 == 1
-y = np.zeros((num_surfs+1, nr, num_fields))
-u = np.zeros((num_surfs, nr, num_fields))
+num_rays = 5 # 55 # number of rays in a ray bundle for a given field
+assert num_rays % 2 == 1
+y = np.zeros((num_surfs+1, num_rays, num_fields))
+u = np.zeros((num_surfs, num_rays, num_fields))
 
-z_sag = np.zeros((num_surfs+1, nr, num_fields))
-y_intersection = np.zeros((num_surfs, nr, num_fields))
+z_sag = np.zeros((num_surfs+1, num_rays, num_fields))
+y_intersection = np.zeros((num_surfs, num_rays, num_fields))
 
 # loop over fields
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
-    dtheta = 2*marginal_ray_angle/nr
-    # k=0 and k=nr-1 are the marginal rays, k=nr//2 is the chief ray of the ray bundle.
-    u[0,:,f] = np.array([-u_cr[0,f] + (k-nr//2)*dtheta for k in range(nr)])
+    dtheta = 2*marginal_ray_angle/num_rays
+    # k=0 and k=num_rays-1 are the marginal rays, k=num_rays//2 is the chief ray of the ray bundle.
+    u[0,:,f] = np.array([-u_cr[0,f] + (k-num_rays//2)*dtheta for k in range(num_rays)])
 
     # loop over rays in a ray bundle
-    for r in range(nr):
+    for r in range(num_rays):
         y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
         for i in range(1, num_surfs):
             if np.isinf(R[i]) or not SAG:
@@ -317,13 +304,13 @@ for f in range(num_fields):
 # exit(1)
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
-stop_radius = np.abs(y[AS_surf,nr-1,0])
+stop_radius = np.abs(y[AS_surf,num_rays-1,0])
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
 heights[0] = 0
 for s in range(1, num_surfs):
     for f in range(num_fields):
-        for r in [0,nr-1]: # consider only outermost rays
+        for r in [0,num_rays-1]: # consider only outermost rays
             hs = np.abs(y[s,r,f])
             if (hs > heights[s]): 
                 heights[s] = hs
@@ -346,13 +333,13 @@ BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-1])
 EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-1])
 
 # Calculate the BID from the intersection of the marginal rays of the on-axis ray bundle.
-BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,nr-1,0]))
+BID = (y[num_surfs-2,num_rays-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,num_rays-1,0]))
 TTL = np.sum(t[1:num_surfs])
 
 # SECTION 4: Plot
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 for f in range(num_fields):
-    for r in range(nr):
+    for r in range(num_rays):
         fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
 
 # horizontal incoming ray
@@ -375,8 +362,8 @@ S5 = np.zeros(num_surfs)
 PetzSum = 0.0
 for i in range(1,num_surfs):
     MRI[i] = n[i-1]*(y[i,0,num_fields-1]/R[i] + np.tan(u[i-1,0,num_fields-1])) # marginal ray for the *on-axis* ray bundle
-    CRI[i] = n[i-1]*(y[i,nr//2,0]/R[i] + np.tan(u[i-1,nr//2,0])) # chief ray for the ray bundle *at maximum object* height 
-    L[i] = n[i-1]*(y[i,0,num_fields-1]*np.tan(u[i-1,nr//2,0]) - y[i,nr//2,0]*np.tan(u[i-1,0,num_fields-1])) # Lagrange invariant for the above two rays
+    CRI[i] = n[i-1]*(y[i,num_rays//2,0]/R[i] + np.tan(u[i-1,num_rays//2,0])) # chief ray for the ray bundle *at maximum object* height 
+    L[i] = n[i-1]*(y[i,0,num_fields-1]*np.tan(u[i-1,num_rays//2,0]) - y[i,num_rays//2,0]*np.tan(u[i-1,0,num_fields-1])) # Lagrange invariant for the above two rays
     S1[i] = -MRI[i]*MRI[i]*y[i,0,num_fields-1]*(np.tan(u[i,0,num_fields-1])/n[i] - np.tan(u[i-1,0,num_fields-1])/n[i-1])
     S2[i] = S1[i]*CRI[i]/MRI[i]
     S3[i] = S2[i]*CRI[i]/MRI[i]
