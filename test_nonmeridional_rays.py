@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 from nonmeridional_rays import raytrace_nonmeridional_rays
-from plot import plot_ray, plot_surfaces
+from plot import plot_ray, plot_surfaces, intersection_with_surface
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
@@ -78,24 +78,45 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
-num_rays = 55 # number of rays per ray fan
-num_azimuth = 5 # rotate fay fan around chief ray, split interval [0,pi] into num_azimuth+1 different angles
-dg3 = np.pi/(num_azimuth+1)
+# ====================================
+# Launch a non-meridional ray fan
+# ====================================
+num_rays_per_fan = 15 # number of rays per ray fan
+# with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
+# and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
+gamma1_field = np.arctan(obj_height[0:num_fields]/t[0])  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
+gamma2_max = 0.03  # half opening angle of the ray bundle 
+dg2 = gamma2_max*2/num_rays_per_fan
+
+num_azimuth = 15 # rotate fay fan around chief ray, split interval [0,pi] into num_azimuth+1 different angles
+dg3 = np.pi/num_azimuth
+
+# Note that the chief ray is not rotated around itself.
+num_rays = (num_rays_per_fan-1)*num_azimuth + 1
+
+# A ray bundle at field position f is a tuple (P_intersect[0:3,0:num_surfs+1,0:num_rays,f], rayvecs[0:3,0:num_surfs+1,0:num_rays,f]). 
+# The chief ray is is labelled as the first ray: (P_intersect[0:3,0:num_surfs+1,0,f], rayvecs[0:3,0:num_surfs+1,0,f])
 
 # ===========================================================================================================================
 P_intersect = np.zeros((3,num_surfs+1,num_rays,num_fields))
-rayvecs = np.zeros((3,num_surfs+1,num_rays,num_fields))
-# Launch a non-meridional ray fan 
+rayvecs = np.zeros((3,num_surfs+1,num_rays,num_fields)) 
+gamma2_list = [(k-num_rays_per_fan//2)*dg2 for k in range(num_rays_per_fan) if k != num_rays_per_fan//2] # don't include chief ray
+gamma3_list = [k*dg3 for k in range(num_azimuth)]
 print("raytrace non-meridional rays")
-# with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
-# and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
-gamma1 = -0.02  # inclination angle (in radians) of the ray bundle 
-gamma2_max = 0.02  # half opening angle of the ray bundle 
-dg2 = gamma2_max*2/num_rays
-for f in range(num_fields):
-    for r, gamma2 in enumerate([(k-num_rays//2)*dg2 for k in range(num_rays)]):
-        P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
-        rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2), -sin(gamma1)*cos(gamma2), cos(gamma1)*cos(gamma2)])
+for f in range(num_fields):    
+    # chief ray
+    r = 0
+    P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
+    rayvecs[0:3, 0, r, f] = np.array([0, -sin(gamma1_field[f]), cos(gamma1_field[f])])
+
+    for gamma2 in gamma2_list:
+        for gamma3 in gamma3_list:
+            r += 1           
+            P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
+            rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2)*cos(gamma3), 
+                                              -cos(gamma1_field[f])*sin(gamma2)*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2), 
+                                              -sin(gamma1_field[f])*sin(gamma2)*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2)])
+            
 P_intersect, rayvecs = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs)
 # ===========================================================================================================================
 
@@ -105,15 +126,27 @@ for f in range(num_fields):
     for r in range(num_rays):
         fig = plot_ray(t, P_intersect[1,:,r,f], fig, z_sag=P_intersect[2,:,r,f]-zS[:], color=colors[f])
 
-plot_surfaces(t, R, (t[0]*np.abs(gamma1)+max_obj_height)*np.ones_like(R), n, fig)
+plot_surfaces(t, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
 
+fig.axes[0].set_ylim((-36.0,10.09))
+fig.axes[0].axis("equal")
 plt.show()
 
 # Plot intersection points in the image plane
+# Plot off-axis ray bundles relative to the chief ray.
 fig = plt.figure("fig2", figsize=(6,6), edgecolor="g")
-axs = fig.subplots(1,num_fields,sharex="all",)
+axs = fig.subplots(1,num_fields,sharex=True)
 for f in range(num_fields):
-    # axs[f].axis("equal")
-    axs[f].plot(P_intersect[0,-1,:,f], P_intersect[1,-1,:,f], 'o', color=colors[f])
+    axs[f].axis("equal")
+    y_CR = P_intersect[1,-1,0,f]
+    axs[f].plot(P_intersect[0,-1,:,f], P_intersect[1,-1,:,f]-y_CR, 'o', color=colors[f])
 fig.tight_layout()
 plt.show()
+
+# fig = plt.figure("fig3", figsize=(6,6))
+# axs = fig.subplots(1,num_fields,sharex="all",)
+# for f in range(num_fields):
+#     P = intersection_with_surface((P_intersect[:,1,:,f], rayvecs[:,1,:,f]), zS[1])
+#     axs[f].plot(P[0,:], P[1,:], '+', color=colors[f])
+# fig.tight_layout()
+# plt.show()
