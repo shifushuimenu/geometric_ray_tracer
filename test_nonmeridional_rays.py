@@ -84,7 +84,7 @@ num_fields = len(obj_height)
 num_rays_per_fan = 15 # number of rays per ray fan
 # with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
 # and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
-gamma1_field = np.arctan(obj_height[0:num_fields]/t[0])  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
+gamma1_field = 0.3*np.arctan(obj_height[0:num_fields]/t[0])  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
 gamma2_max = 0.03  # half opening angle of the ray bundle 
 dg2 = gamma2_max*2/num_rays_per_fan
 
