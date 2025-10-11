@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt 
-from util import timer_func
+from utils import timer_func
 
 def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
 

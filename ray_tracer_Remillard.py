@@ -181,8 +181,8 @@ for f in range(num_fields):
     print("field=", f)
     y_cr[AS_surf,f] = 0.0
 
-    u_max = 0.4  # radians 
-    u_min = -0.4 #    
+    u_max = 0.4 #np.pi/2.0 - 0.01  # 0.4 # radians 
+    u_min = -0.4 #-np.pi/2.0 + 0.01 # -0.4 #    
     CHIEF_RAY_FOUND = False
     print("determining chief ray launch angle")
     while(not CHIEF_RAY_FOUND): # and y_cr[0,f] < obj_height[f]):
@@ -211,7 +211,7 @@ for f in range(num_fields):
                 sgnR = np.sign(R_)
                 tanu0 = np.tan(u0)
                 Delta = R_**2 - 2*y0*tanu0*R_ - y0**2
-                assert Delta > 0, "Delta < 0, %f"%(Delta)
+                assert Delta > 0, "Delta < 0, %f: No intersection point found with surface nr %d"%(Delta, i)
                 zp = (R_ - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                
                 yp = y0 + tanu0*zp 
                 theta = np.arctan(sgnR*yp/(R_-zp))
@@ -225,9 +225,13 @@ for f in range(num_fields):
         # criterion whether chief ray has been found
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
         # update bracketing interval for binary search
-        if y_cr[0,f] < obj_height[f]: 
+        if y_cr[0,f] < obj_height[f]:
+            print(f"y_cr[0,{f}] < obj_height[{f}]")
+            print(f"u_min = {u_min} and u_max = {u_max}")
             u_min = u_middle 
         else:
+            print(f"y_cr[0,{f}] > obj_height[{f}]")
+            print(f"u_min = {u_min} and u_max = {u_max}")
             u_max = u_middle
 
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
