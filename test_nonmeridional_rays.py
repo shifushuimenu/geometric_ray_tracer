@@ -120,6 +120,9 @@ for f in range(num_fields):
 P_intersect, rayvecs = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs)
 # ===========================================================================================================================
 
+test1, test2 = raytrace_nonmeridional_rays(zS, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvecs[:,:,:,np.newaxis,np.newaxis])
+exit(1)
+
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 fig = None
 for f in range(num_fields):
