@@ -4,7 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from nonmeridional_rays import raytrace_nonmeridional_rays
+from nonmeridional_rays import raytrace_nonmeridional_rays, calculate_OPD
 from plot import plot_ray, plot_surfaces, intersection_with_surface
 
 # SECTION 1:
@@ -81,7 +81,7 @@ num_fields = len(obj_height)
 # ====================================
 # Launch a non-meridional ray fan
 # ====================================
-num_rays_per_fan = 15 # number of rays per ray fan
+num_rays_per_fan = 55 # number of rays per ray fan
 # with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
 # and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
 gamma1_field = 0.3*np.arctan(obj_height[0:num_fields]/t[0])  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
@@ -121,6 +121,23 @@ P_intersect, rayvecs = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvec
 # ===========================================================================================================================
 
 test1, test2 = raytrace_nonmeridional_rays(zS, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvecs[:,:,:,np.newaxis,np.newaxis])
+
+colors = ["blue", "green", "red"]
+OPD = calculate_OPD(n, P_intersect)
+for f in range(num_fields):
+    for r in range(num_rays):
+       plt.plot(range(num_surfs), OPD[:,r,f], color=colors[f])
+plt.show()
+
+plt.plot(P_intersect[0,-5,:,f], OPD[-5,:,f], '-o')
+plt.plot(P_intersect[1,-5,:,f], OPD[-5,:,f], '-o')
+plt.show()
+
+fig = plt.figure(figsize=(6,8))
+ax = fig.add_subplot(111, projection="3d")
+ax.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], OPD[-3,:,f], marker='o')
+plt.show()
+exit(1)
 
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 fig = None

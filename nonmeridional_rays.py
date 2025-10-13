@@ -100,3 +100,27 @@ def raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs):
     # rayvecs = np.transpose(rayvecs, axes=(0,3,1,2))
 
     return P_intersect, rayvecs
+
+@timer_func
+def calculate_OPD(n, P_intersect):
+    """Calculate optical path difference (OPD) relative to the chief ray of a ray bundle."""
+
+    n = np.asarray(n)
+    P_intersect = np.asarray(P_intersect)
+    _, tmp, num_rays, num_fields = P_intersect.shape
+    num_surfs = tmp - 1
+    # Image surface has optical path zero.
+    P_diff = np.zeros((3, num_surfs, num_rays, num_fields))    
+    # optical path segments OPS between surfaces
+    P_diff[:,0:,...] = np.diff(P_intersect[:,:,...],axis=1)
+    OPS = np.linalg.norm(P_diff,axis=0) * n[:,np.newaxis,np.newaxis]
+    # Cumulative optical path up to a given surface.    
+    OP = np.cumsum(OPS, axis=0)    
+    # Optical path difference relative to the chief ray.
+    OPD = np.zeros_like(OP)
+    # for f in range(num_fields):
+    #     for r in range(num_rays):
+    #         OPD[:,r,f] = OP[:,r,f] - OP[:,num_rays//2,f]
+    OPD[:,:,...] = OP[:,:,...] - OP[:,num_rays//2,:][:,np.newaxis,...]            
+
+    return OPD
