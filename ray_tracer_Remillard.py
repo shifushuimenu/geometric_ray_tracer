@@ -179,6 +179,7 @@ z_sag_cr = np.zeros((AS_surf+1, num_fields))
 
 for f in range(num_fields):
     print("field=", f)
+    # By definition, at the aperture stop, the chief ray intersects the optical axis.
     y_cr[AS_surf,f] = 0.0
 
     u_max = 0.4 #np.pi/2.0 - 0.01  # 0.4 # radians 
@@ -259,7 +260,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-num_rays = 5 # 55 # number of rays in a ray bundle for a given field
+num_rays = 55 # number of rays in a ray bundle for a given field
 assert num_rays % 2 == 1
 y = np.zeros((num_surfs+1, num_rays, num_fields))
 u = np.zeros((num_surfs, num_rays, num_fields))
@@ -340,6 +341,11 @@ EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-1])
 BID = (y[num_surfs-2,num_rays-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,num_rays-1,0]))
 TTL = np.sum(t[1:num_surfs])
 
+# Calculate the image space numerical aperture from the angle between the marginal ray and the optical axis in image space.
+ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
+# Calculate magnification 
+magnification = obj_height[0] / y[num_surfs, num_rays//2, 0] # As image height we take the height of the chief ray.
+
 # SECTION 4: Plot
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 for f in range(num_fields):
@@ -393,6 +399,9 @@ with open("lens_summary.txt", "w") as fh:
     print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
     print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
     print(f"Object Space NA = {ObjNA}", file=fh)
+    print(f"Image Space NA = {ImgNA}", file=fh)
+    print(f"magnification = {magnification}", file=fh)
+    print(f"Violation of Abbe sine condition: eps = {ObjNA - ImgNA / np.abs(magnification)}",file=fh)
     print(f"Field of view FOV = {FOV}", file=fh)
     print(f"Stop Radius = {stop_radius}", file=fh)
     print(f"Back Focal Length BFL = {BFL} mm", file=fh)
