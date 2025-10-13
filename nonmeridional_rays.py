@@ -111,7 +111,7 @@ def calculate_OPD(n, P_intersect):
     num_surfs = tmp - 1
     # Image surface has optical path zero.
     P_diff = np.zeros((3, num_surfs, num_rays, num_fields))    
-    # optical path segments OPS between surfaces
+    # Optical path segments OPS between surfaces
     P_diff[:,0:,...] = np.diff(P_intersect[:,:,...],axis=1)
     OPS = np.linalg.norm(P_diff,axis=0) * n[:,np.newaxis,np.newaxis]
     # Cumulative optical path up to a given surface.    
