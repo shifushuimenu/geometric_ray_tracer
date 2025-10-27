@@ -16,6 +16,9 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from time import time
+
+from trace_ray import LensSequence, trace_ray
 
 mpl.rcParams["lines.linewidth"] = 1
     
@@ -127,7 +130,7 @@ stop_flag = np.zeros(num_surfs)
 R = np.zeros(num_surfs)
 t = np.zeros(num_surfs)
 n = np.zeros(num_surfs)
-V_d = np.zeros(num_surfs)
+Vd = np.zeros(num_surfs)
 phi = np.zeros(num_surfs)
 
 t[0] = lens_layout[0,3]
@@ -137,14 +140,22 @@ for s in range(0, num_surfs):
     R[s] = lens_layout[s, 2] 
     t[s] = lens_layout[s, 3]
     n[s] = lens_layout[s, 4]
-    V_d[s] = lens_layout[s, 5]
+    Vd[s] = lens_layout[s, 5]
     if s  > 0:
         phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
+
+# zdist[s] is the total distance of surface s from the first vertex of the lens system.
+# zdist[0] < 0 is the object distance.
+zdist = np.zeros(num_surfs+1)
+zdist[0] = -t[0]
+zdist[1] = 0
+zdist[2:] = np.cumsum(t[1:])
+
 
 # special case: first surface is the aperture stop
 if stop_flag[1] == 1:
     AS_surf = 1
-    pass
+    pass # MISSING
 
 # Find the aperture stop and verify that there is only one aperture stop.
 found_AS = False
@@ -235,6 +246,7 @@ for f in range(num_fields):
             print(f"u_min = {u_min} and u_max = {u_max}")
             u_max = u_middle
 
+# entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
 # for f in range(num_fields-1):
 #     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
@@ -268,6 +280,7 @@ u = np.zeros((num_surfs, num_rays, num_fields))
 z_sag = np.zeros((num_surfs+1, num_rays, num_fields))
 y_intersection = np.zeros((num_surfs, num_rays, num_fields))
 
+t1 = time()
 # loop over fields
 for f in range(num_fields):
     y[0,:,f] = obj_height[f]
@@ -292,7 +305,7 @@ for f in range(num_fields):
                 tanu0 = np.tan(u0)
                 Delta = R[i]**2 - 2*y0*tanu0*R[i] - y0**2
                 assert Delta > 0, "Delta < 0, %f"%(Delta)  
-                zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)         
+                zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)
                 yp = y0 + tanu0*zp
                 theta = np.arctan(sgnR*yp/(R[i]-zp))
                 u_prime = sgnR*(np.arcsin(n[i-1]/n[i]*np.sin(theta + sgnR*u0)) - theta)
@@ -303,6 +316,26 @@ for f in range(num_fields):
                 u[i,r,f] = u_prime 
                 y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
 
+t2 = time()
+print("elapsed =", t2 - t1)
+
+lens_sequence = LensSequence(
+    num_surfs, 
+    AS_surf,
+    SAG,
+    "mm",
+    R[:],
+    t[:],
+    n[:],
+    Vd[:],
+    phi[:],
+)
+
+y_test, u_test, z_sag_test = trace_ray(y[1,:,:], u[1,:,:], lens_sequence, surf_start=1)
+print("u_test=", u_test[0:,0,0])
+print("u = ", u[0:,0,0])
+exit(1)
+assert np.isclose(y_test, y).all()
 
 # plt.show()
 # generate_ray_fan_plot(y, AS_surf, 1.0, num_surfs)
@@ -310,6 +343,47 @@ for f in range(num_fields):
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
 stop_radius = np.abs(y[AS_surf,num_rays-1,0])
+
+# ===============================================================
+# Locate the position of the *exit pupil* and its diameter.
+# ===============================================================
+# Trace two rays from the edge of the aperture stop towards the image side. 
+# Their first intersection point as viewed from the image side gives the edge 
+# of the exit pupil since it is the image of the aperture stop. The exit pupil
+# can be a virtual image.
+y_pupil = np.zeros((num_surfs+1,2))
+u_pupil = np.zeros((num_surfs,2))
+
+# Ray 1 is just a copy of the on-axis marginal ray.
+y_pupil[AS_surf:,0] = y[AS_surf:,num_rays-1,0]
+u_pupil[AS_surf:,0] = u[AS_surf:,num_rays-1,0]
+# Ray 2 goes through the center of the next lens element. In the paraxial approximation, 
+# any other ray would be just as good. 
+y_pupil[AS_surf,1] = stop_radius
+if np.isclose(t[AS_surf], 0):
+    dist_left_of_AS = t[AS_surf+1]
+else:
+    dist_left_of_AS = t[AS_surf]
+u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_left_of_AS)
+# First check whether the exit pupil is virtual, i.e. ray 1 and ray 2 
+# intersect to the left of the first lens element behind the aperture stop.
+z_intersection = - stop_radius/(np.tan(u_pupil[AS_surf+1,0]) - np.tan(u_pupil[AS_surf,1]))
+if z_intersection < 0:
+    print(f"exit pupil is virtual, z={z_intersection}")
+    print(f"location of the aperture stop {zdist[AS_surf]}")
+    XPL = z_intersection + zdist[AS_surf]
+    XP_radius = np.tan(u_pupil[AS_surf,1]) * z_intersection
+    print(f"exit pupil location XPL={XPL}")
+    print(f"exit pupil semidiameter XP_radius={XP_radius}")
+else:
+    print(f"exit pupil is a real image of the aperture stop")
+    # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
+    for s in range(AS_surf+1, num_surfs+1, 1):
+        pass
+        
+
+
+
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
 heights[0] = 0
@@ -390,7 +464,7 @@ with open("lens_summary.txt", "w") as fh:
     header+= str("# "+str("="*(12*2+22*3+26*2)))
     print(header, file=fh)
     for s in range(num_surfs):
-        print("%12d %12d %21.4e %21.6f %21.6f %25.6f %25.5f"%(s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s]), file=fh)
+        print("%12d %12d %21.4e %21.6f %21.6f %25.6f %25.5f"%(s, stop_flag[s], R[s], t[s], n[s], Vd[s], heights[s]), file=fh)
     print(" ", file=fh)
     print(f"Chief ray launch angles:", file=fh)
     for f in range(num_fields):
