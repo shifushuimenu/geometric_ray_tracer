@@ -127,11 +127,11 @@ lens_layout = np.loadtxt(lens_file, comments="#", skiprows=1)
 num_surfs = lens_layout.shape[0]
 
 stop_flag = np.zeros(num_surfs)
-R = np.zeros(num_surfs)
-t = np.zeros(num_surfs)
-n = np.zeros(num_surfs)
-Vd = np.zeros(num_surfs)
-phi = np.zeros(num_surfs)
+R = np.zeros(num_surfs, dtype=np.float64)
+t = np.zeros(num_surfs, dtype=np.float64)
+n = np.zeros(num_surfs, dtype=np.float64)
+Vd = np.zeros(num_surfs, dtype=np.float64)
+phi = np.zeros(num_surfs, dtype=np.float64)
 
 t[0] = lens_layout[0,3]
 AS_surf = 0
@@ -272,7 +272,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-num_rays = 55 # number of rays in a ray bundle for a given field
+num_rays = 3 # number of rays in a ray bundle for a given field
 assert num_rays % 2 == 1
 y = np.zeros((num_surfs+1, num_rays, num_fields))
 u = np.zeros((num_surfs, num_rays, num_fields))
@@ -331,11 +331,17 @@ lens_sequence = LensSequence(
     phi[:],
 )
 
-y_test, u_test, z_sag_test = trace_ray(y[1,:,:], u[1,:,:], lens_sequence, surf_start=1)
-print("u_test=", u_test[0:,0,0])
-print("u = ", u[0:,0,0])
-exit(1)
-assert np.isclose(y_test, y).all()
+y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[15,:,:], u[15,:,:], lens_sequence, surf_start=15)
+y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[15,:,:], u[15,:,:], lens_sequence, surf_start=15)
+print("y[1,0,0]=", y[1,0,0])
+print("u[1,0,0]=", u[1,0,0])
+# exit(1)
+print("u_test=", u_test[0:,0,1])
+print("u = ", u[0:,0,1])
+print("y_test=", y_test[0:,0,1])
+print("y = ", y[0:,0,1])
+# assert np.isclose(y_test, y).all()
+# exit(1)
 
 # plt.show()
 # generate_ray_fan_plot(y, AS_surf, 1.0, num_surfs)
@@ -424,7 +430,9 @@ magnification = obj_height[0] / y[num_surfs, num_rays//2, 0] # As image height w
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 for f in range(num_fields):
     for r in range(num_rays):
-        fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
+        fig = plot_ray(t, y_test[:,r,f], fig, z_sag_test[:,r,f], color=colors[f])
+        fig = plot_ray(t, y_test2[:,r,f], fig, z_sag_test2[:,r,f], color=colors[f])
+        # fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
