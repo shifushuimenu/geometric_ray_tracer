@@ -331,8 +331,8 @@ lens_sequence = LensSequence(
     phi[:],
 )
 
-y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[5,:,:], u[5,:,:], lens_sequence, surf_start=5)
-y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
+y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
+y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[5,:,:], u[4,:,:], lens_sequence, surf_start=5)
 print("y[1,0,0]=", y[1,0,0])
 print("u[1,0,0]=", u[1,0,0])
 # exit(1)

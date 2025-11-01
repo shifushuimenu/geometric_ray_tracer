@@ -67,12 +67,12 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
         # theta = np.arctan(sgnR*yp/(lens_sequence.R[surf_start]-zp))
         # u_prime = sgnR*(np.arcsin((lens_sequence.n[surf_start-1]/lens_sequence.n[surf_start])*np.sin(theta + sgnR*u0)) - theta)            
 
-        zp, yp, _ = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
+        zp, yp, u_prime = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
 
         z_sag[surf_start,...] = zp
         # y_intersection[i,r,f] = yp
         y[surf_start,...] = yp # reset to value at intersection point, i.e. now surface sag is taken into account
-        # u[surf_start,...] = u_prime  # u[surf_start,...] is the angle *behind* the surface.
+        u[surf_start,...] = u_prime  # u[surf_start,...] is the angle *behind* the surface.
         y[surf_start+1,...] = yp + np.tan(u[surf_start,...])*(lens_sequence.t[surf_start] - zp)
         y_vertexplane[surf_start+1,...] = y[surf_start+1,...].copy()
 
