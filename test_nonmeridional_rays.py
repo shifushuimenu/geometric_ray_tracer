@@ -4,7 +4,9 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from nonmeridional_rays import raytrace_nonmeridional_rays, calculate_OPD
+from nonmeridional_rays import (raytrace_nonmeridional_rays, 
+                                calculate_OPD, 
+                                calculate_wavefront_aberration)
 from plot import plot_ray, plot_surfaces, intersection_with_surface
 
 # SECTION 1:
@@ -81,14 +83,14 @@ num_fields = len(obj_height)
 # ====================================
 # Launch a non-meridional ray fan
 # ====================================
-num_rays_per_fan = 55 # number of rays per ray fan
+num_rays_per_fan = 5 # number of rays per ray fan
 # with rotation angle gamma1 around the x-axis (positive angle means downward inclination)
 # and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
 gamma1_field = 0.3*np.arctan(obj_height[0:num_fields]/t[0])  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
 gamma2_max = 0.03  # half opening angle of the ray bundle 
 dg2 = gamma2_max*2/num_rays_per_fan
 
-num_azimuth = 15 # rotate fay fan around chief ray, split interval [0,pi] into num_azimuth+1 different angles
+num_azimuth = 5 # rotate fay fan around chief ray, split interval [0,pi] into num_azimuth+1 different angles
 dg3 = np.pi/num_azimuth
 
 # Note that the chief ray is not rotated around itself.
@@ -99,7 +101,7 @@ num_rays = (num_rays_per_fan-1)*num_azimuth + 1
 
 # ===========================================================================================================================
 P_intersect = np.zeros((3,num_surfs+1,num_rays,num_fields))
-rayvecs = np.zeros((3,num_surfs+1,num_rays,num_fields)) 
+rayvec = np.zeros((3,num_surfs+1,num_rays,num_fields)) 
 gamma2_list = [(k-num_rays_per_fan//2)*dg2 for k in range(num_rays_per_fan) if k != num_rays_per_fan//2] # don't include chief ray
 gamma3_list = [k*dg3 for k in range(num_azimuth)]
 print("raytrace non-meridional rays")
@@ -107,21 +109,23 @@ for f in range(num_fields):
     # chief ray
     r = 0
     P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
-    rayvecs[0:3, 0, r, f] = np.array([0, -sin(gamma1_field[f]), cos(gamma1_field[f])])
+    rayvec[0:3, 0, r, f] = np.array([0, -sin(gamma1_field[f]), cos(gamma1_field[f])])
 
     for gamma2 in gamma2_list:
         for gamma3 in gamma3_list:
             r += 1           
             P_intersect[0:3, 0, r, f] = np.array([0, obj_height[f], 0]) # object oriented along y-axis
-            rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2)*cos(gamma3), 
+            rayvec[0:3, 0, r, f] = np.array([-sin(gamma2)*cos(gamma3), 
                                               -cos(gamma1_field[f])*sin(gamma2)*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2), 
                                               -sin(gamma1_field[f])*sin(gamma2)*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2)])
             
-P_intersect, rayvecs = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs)
+P_intersect, rayvec = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvec)
 # ===========================================================================================================================
 
-test1, test2 = raytrace_nonmeridional_rays(zS, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvecs[:,:,:,np.newaxis,np.newaxis])
+test1, test2 = raytrace_nonmeridional_rays(zS, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvec[:,:,:,np.newaxis,np.newaxis])
 
+# =============================================================================================
+# TEST: Plot optical path difference relative to chief ray for different field positions
 colors = ["blue", "green", "red"]
 OPD = calculate_OPD(n, P_intersect)
 for f in range(num_fields):
@@ -133,11 +137,30 @@ plt.plot(P_intersect[0,-5,:,f], OPD[-5,:,f], '-o')
 plt.plot(P_intersect[1,-5,:,f], OPD[-5,:,f], '-o')
 plt.show()
 
+XPloc = 0.0
+OPD_ideal, OPD_actual, Werr, P_intersect_XP = calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0)
+
+f = 0
+x = []; y = []; w = []
+for r in range(num_rays):
+    x.append(P_intersect_XP[0,r,f]); y.append(P_intersect_XP[1,r,f]); w.append(OPD_ideal[r,f])
+
+x = np.asarray(x)
+y = np.asarray(y)
+w = np.asarray(w)
+
 fig = plt.figure(figsize=(6,8))
-ax = fig.add_subplot(111, projection="3d")
-ax.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], OPD[-3,:,f], marker='o')
+fig.suptitle("wavefront aberration")
+
+ax1 = fig.add_subplot(121, projection="3d")
+ax1.set_title("ideal OPD")
+ax1.scatter(x,y,w)
+
+ax2 = fig.add_subplot(122, projection="3d")
+ax2.set_title("actual OPD")
+ax2.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], P_intersect_XP[2,:,f], 'o') #OPD_actual[:,f], marker='o')
 plt.show()
-exit(1)
+# =============================================================================================
 
 colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
 fig = None

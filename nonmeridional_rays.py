@@ -103,24 +103,102 @@ def raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs):
 
 @timer_func
 def calculate_OPD(n, P_intersect):
-    """Calculate optical path difference (OPD) relative to the chief ray of a ray bundle."""
+    """
+    Calculate the optical path difference (OPD) relative to the chief ray of a ray bundle
+    (on every curved surface).
 
+    Parameters
+    ----------
+    n : 1-dim array_like 
+        n[0:num_surfs] : refractive indices *behind* each surface, excluding the image surface
+    P_intersect : array_like
+        P_intersect[0:3, 0:num_surfs+1, 0:num_rays, ...] are the intersection points of rays with all 
+        surfaces including object and image surface. Ellipsis (...) denotes optional additional indices 
+        for ray bundles at different field positions and wavelengths. The third index r=0:num_rays runs 
+        over rays in a ray bundle, with r=num_rays//2 the chief ray.
+
+    Returns
+    -------
+    OPD : ndarray
+        Optical path difference relative to the chief ray of each ray bundle.
+        OPD[0:num_surfs, 0:num_rays, ...] is the optical path difference at every surface relative to the
+        chief ray of each ray bundle, in lens units (typically mm).
+    """
     n = np.asarray(n)
     P_intersect = np.asarray(P_intersect)
     _, tmp, num_rays, num_fields = P_intersect.shape
     num_surfs = tmp - 1
     # Image surface has optical path zero.
     P_diff = np.zeros((3, num_surfs, num_rays, num_fields))    
-    # Optical path segments OPS between surfaces
+    # Optical path segments OPS between surfaces = refractive index times distance travelled in the medium
     P_diff[:,0:,...] = np.diff(P_intersect[:,:,...],axis=1)
     OPS = np.linalg.norm(P_diff,axis=0) * n[:,np.newaxis,np.newaxis]
     # Cumulative optical path up to a given surface.    
     OP = np.cumsum(OPS, axis=0)    
     # Optical path difference relative to the chief ray.
-    OPD = np.zeros_like(OP)
+    OPD = np.empty_like(OP)
     # for f in range(num_fields):
     #     for r in range(num_rays):
     #         OPD[:,r,f] = OP[:,r,f] - OP[:,num_rays//2,f]
-    OPD[:,:,...] = OP[:,:,...] - OP[:,num_rays//2,:][:,np.newaxis,...]            
+    OPD[:,:,...] = OP[:,:,...] - OP[:,num_rays//2,:][:,np.newaxis,...]       
 
     return OPD
+
+@timer_func
+def calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0):
+    """
+    Calculate the wavefront aberration in the plane of the exit pupil. It is calculated as 
+    the difference between the OPD (relative to the chief ray) of an ideal spherical 
+    wavefront centered on the intersection point of the chief ray with the image plane 
+    and the actual OPD of the ray bundle in the exit pupil.
+    The wavefront aberration is measured in the plane of the exit pupil and is given in 
+    lens units (typically mm).
+    
+    Parameters
+    ----------
+    OPD[0:num_surfs, 0:num_rays, ...] : ndarray
+        OPD is the optical path difference at every surface relative to the
+        chief ray of each ray bundle, in lens units (typically mm).
+    P_intersect[0:3, 0:num_surfs+1, 0:num_rays, 0:num_fields] : ndarray
+        Intersection point at each surface (including object and image surface)
+    rayvec[0:3, 0:num_surfs+1, 0:num_rays, 0:num_fields] : ndarray
+        Unit-length ray directions at each intersection point
+    XPloc : float 
+        z-location of the exit pupil
+    n_imag : float, optional 
+        refractive index in image space
+
+    Returns
+    -------
+    wavefront_aberration[0:num_rays, 0:num_fields] : ndarray
+    P_intersect_XP : ndarray
+        Intersection points of the ray bundles with the exit pupil.
+    """
+    _, tmp, num_rays, num_fields = P_intersect.shape
+    num_surfs = tmp - 1
+    # Wavefront aberrations across the field
+    OPD_ideal = np.zeros((num_rays, num_fields))
+    OPD_ideal_tmp = np.zeros_like(OPD_ideal)
+    OPD_actual = np.zeros((num_rays, num_fields))
+    wavefront_aberration = np.zeros((num_rays, num_fields))
+    P_intersect_XP = np.zeros((3, num_rays, num_fields))
+
+    for f in range(num_fields):
+        # intersection point of the chief ray with the image surface
+        x_cr, y_cr, z_cr = P_intersect[:,-1,num_rays//2,f]
+        # Distance between the exit pupil (XP) and the image plane.
+        d = XPloc - z_cr
+        for r in range(num_rays):
+            # Trace the OPD in the image plane backward in z-direction (or forward - depending on the sign of d) to the exit pupil plane
+            P_intersect_XP[:,r,f] = P_intersect[:,-1,r,f] - (d/rayvec[2,-1,r,f]) * rayvec[:,-1,r,f]
+            x_P, y_P = P_intersect_XP[0:2,r,f]
+            OPD_actual[r,f] = OPD[-1,r,f] - d / rayvec[2,-1,r,f] * n_imag
+            # Optical path length difference relative to the chief ray in the exit pupil for an ideal spherical wave
+            # focused on the image plane.
+            OPD_ideal_tmp[r,f] = d * (np.sqrt(1 + ((x_P - x_cr)**2 + (y_P - y_cr)**2)/d**2) - np.sqrt(1 + (x_cr**2 + y_cr**2)/d**2))
+            OPD_ideal[r,f] = OPD_ideal_tmp[r,f] - OPD_ideal_tmp[num_rays//2, f]
+        wavefront_aberration[:,f] = OPD_actual[:,f] - OPD_ideal[:,f]
+
+    return OPD_ideal, OPD_actual, wavefront_aberration, P_intersect_XP
+
+

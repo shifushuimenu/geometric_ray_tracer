@@ -30,6 +30,21 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
     u = np.zeros_like(y)
     z_sag = np.zeros_like(y)
 
+    def intersection_spherical_with_sag(surf, y0, u0, lens_sequence):
+        """intersection with a spherical surface with positive or negative radius of curvature"""
+        assert surf > 0
+        sgnR = np.sign(lens_sequence.R[surf]) # The formula depends on the sign of the radius of curvature.
+        tanu0 = np.tan(u0)
+        Delta = lens_sequence.R[surf]**2 - 2*y0*tanu0*lens_sequence.R[surf] - y0**2            
+        assert np.all(Delta > 0) #, "Delta[0] < 0, %f"%(Delta[0])  
+        zp = (lens_sequence.R[surf] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
+        yp = y0 + tanu0*zp            
+        theta = np.arctan(sgnR*yp/(lens_sequence.R[surf]-zp))
+        u_prime = sgnR*(np.arcsin((lens_sequence.n[surf-1]/lens_sequence.n[surf])*np.sin(theta + sgnR*u0)) - theta)
+
+        return zp, yp, u_prime
+        
+
     # The ray height `y_start`` is meant to be measured at the vertex plane tangential to the surface with index `surf_start`.
     # This means that surface sag is not taken into account yet.
     y_vertexplane[surf_start,...] = y_start[...]
@@ -42,15 +57,17 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
           # This duplication of code is a bit messy and could be simplified.
         y0 = y[surf_start,...]
         u0 = u[surf_start,...]
-        # intersection with spherical surface with positive or negative radius of curvature
-        sgnR = np.sign(lens_sequence.R[surf_start]) # The formula depends on the sign of the radius of curvature.
-        tanu0 = np.tan(u0)
-        Delta = lens_sequence.R[surf_start]**2 - 2*y0*tanu0*lens_sequence.R[surf_start] - y0**2            
-        assert np.all(Delta > 0) #, "Delta[0] < 0, %f"%(Delta[0])  
-        zp = (lens_sequence.R[surf_start] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
-        yp = y0 + tanu0*zp            
-        theta = np.arctan(sgnR*yp/(lens_sequence.R[surf_start]-zp))
-        u_prime = sgnR*(np.arcsin((lens_sequence.n[surf_start-1]/lens_sequence.n[surf_start])*np.sin(theta + sgnR*u0)) - theta)            
+        # # intersection with spherical surface with positive or negative radius of curvature
+        # sgnR = np.sign(lens_sequence.R[surf_start]) # The formula depends on the sign of the radius of curvature.
+        # tanu0 = np.tan(u0)
+        # Delta = lens_sequence.R[surf_start]**2 - 2*y0*tanu0*lens_sequence.R[surf_start] - y0**2            
+        # assert np.all(Delta > 0) #, "Delta[0] < 0, %f"%(Delta[0])  
+        # zp = (lens_sequence.R[surf_start] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
+        # yp = y0 + tanu0*zp            
+        # theta = np.arctan(sgnR*yp/(lens_sequence.R[surf_start]-zp))
+        # u_prime = sgnR*(np.arcsin((lens_sequence.n[surf_start-1]/lens_sequence.n[surf_start])*np.sin(theta + sgnR*u0)) - theta)            
+
+        zp, yp, _ = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
 
         z_sag[surf_start,...] = zp
         # y_intersection[i,r,f] = yp
@@ -68,15 +85,17 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
         else:                
             y0 = y[i,...]
             u0 = u[i-1,...]
-            # intersection with spherical surface with positive or negative radius of curvature
-            sgnR = np.sign(lens_sequence.R[i]) # The formula depends on the sign of the radius of curvature.
-            tanu0 = np.tan(u0)
-            Delta = lens_sequence.R[i]**2 - 2*y0*tanu0*lens_sequence.R[i] - y0**2            
-            assert np.all(Delta > 0) #, "Delta[0] < 0, %f"%(Delta[0])  
-            zp = (lens_sequence.R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
-            yp = y0 + tanu0*zp            
-            theta = np.arctan(sgnR*yp/(lens_sequence.R[i]-zp))
-            u_prime = sgnR*(np.arcsin((lens_sequence.n[i-1]/lens_sequence.n[i])*np.sin(theta + sgnR*u0)) - theta)            
+            # # intersection with spherical surface with positive or negative radius of curvature
+            # sgnR = np.sign(lens_sequence.R[i]) # The formula depends on the sign of the radius of curvature.
+            # tanu0 = np.tan(u0)
+            # Delta = lens_sequence.R[i]**2 - 2*y0*tanu0*lens_sequence.R[i] - y0**2            
+            # assert np.all(Delta > 0) #, "Delta[0] < 0, %f"%(Delta[0])  
+            # zp = (lens_sequence.R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
+            # yp = y0 + tanu0*zp            
+            # theta = np.arctan(sgnR*yp/(lens_sequence.R[i]-zp))
+            # u_prime = sgnR*(np.arcsin((lens_sequence.n[i-1]/lens_sequence.n[i])*np.sin(theta + sgnR*u0)) - theta)            
+
+            zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence)
 
             z_sag[i,...] = zp
             # y_intersection[i,r,f] = yp
