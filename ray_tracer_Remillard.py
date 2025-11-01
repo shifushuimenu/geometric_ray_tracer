@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from time import time
 
-from trace_ray import LensSequence, trace_ray
+from trace_ray import LensSequence, trace_tangential_ray
 
 mpl.rcParams["lines.linewidth"] = 1
     
@@ -272,7 +272,7 @@ for f in range(num_fields):
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-num_rays = 3 # number of rays in a ray bundle for a given field
+num_rays = 55 # number of rays in a ray bundle for a given field
 assert num_rays % 2 == 1
 y = np.zeros((num_surfs+1, num_rays, num_fields))
 u = np.zeros((num_surfs, num_rays, num_fields))
@@ -331,8 +331,8 @@ lens_sequence = LensSequence(
     phi[:],
 )
 
-y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
-y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[5,:,:], u[4,:,:], lens_sequence, surf_start=5)
+y_test, u_test, z_sag_test, y_vertexplane_test = trace_tangential_ray(y[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
+y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_tangential_ray(y_vertexplane_test[5,:,:], u[4,:,:], lens_sequence, surf_start=5)
 print("y[1,0,0]=", y[1,0,0])
 print("u[1,0,0]=", u[1,0,0])
 # exit(1)
@@ -385,7 +385,7 @@ if z_intersection < 0:
     print(f"exit pupil semidiameter XP_radius={XP_radius}")
 else:
     print(f"exit pupil is a real image of the aperture stop")
-    y_tmp, u_tmp, z_sag_tmp, _ = trace_ray(y_pupil, u_pupil, lens_sequence, surf_start=AS_surf)
+    y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil, u_pupil, lens_sequence, surf_start=AS_surf)
     # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
     # for s in range(AS_surf+1, num_surfs+1, 1):
     #     pass

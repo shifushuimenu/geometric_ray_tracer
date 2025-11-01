@@ -15,7 +15,7 @@ class LensSequence(object):
     phi: np.ndarray = np.array([0, 0, 0])               # surface power
 
 @timer_func
-def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
+def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
     """
     Trace a batch of rays forward (left-to-right) or backwards (right-to-left) till right after the last or 
     right before the first surface of the lens system. Surface sag is considered. 
