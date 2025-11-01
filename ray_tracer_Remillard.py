@@ -331,8 +331,8 @@ lens_sequence = LensSequence(
     phi[:],
 )
 
-y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[15,:,:], u[15,:,:], lens_sequence, surf_start=15)
-y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[15,:,:], u[15,:,:], lens_sequence, surf_start=15)
+y_test, u_test, z_sag_test, y_vertexplane_test = trace_ray(y[5,:,:], u[5,:,:], lens_sequence, surf_start=5)
+y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_ray(y_vertexplane_test[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
 print("y[1,0,0]=", y[1,0,0])
 print("u[1,0,0]=", u[1,0,0])
 # exit(1)
@@ -357,6 +357,8 @@ stop_radius = np.abs(y[AS_surf,num_rays-1,0])
 # Their first intersection point as viewed from the image side gives the edge 
 # of the exit pupil since it is the image of the aperture stop. The exit pupil
 # can be a virtual image.
+# (y_pupil, u_pupil) is the ray that goes through the edge of the aperture stop and through 
+# the edge of the exit pupil.
 y_pupil = np.zeros((num_surfs+1,2))
 u_pupil = np.zeros((num_surfs,2))
 
@@ -383,12 +385,11 @@ if z_intersection < 0:
     print(f"exit pupil semidiameter XP_radius={XP_radius}")
 else:
     print(f"exit pupil is a real image of the aperture stop")
+    y_tmp, u_tmp, z_sag_tmp, _ = trace_ray(y_pupil, u_pupil, lens_sequence, surf_start=AS_surf)
     # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
-    for s in range(AS_surf+1, num_surfs+1, 1):
-        pass
+    # for s in range(AS_surf+1, num_surfs+1, 1):
+    #     pass
         
-
-
 
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
@@ -433,6 +434,8 @@ for f in range(num_fields):
         fig = plot_ray(t, y_test[:,r,f], fig, z_sag_test[:,r,f], color=colors[f])
         fig = plot_ray(t, y_test2[:,r,f], fig, z_sag_test2[:,r,f], color=colors[f])
         # fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
+        fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="k")
+        fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="k")
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)

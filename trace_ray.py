@@ -20,6 +20,8 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
     Trace a batch of rays forward (left-to-right) or backwards (right-to-left) till right after the last or 
     right before the first surface of the lens system. Surface sag is considered. 
     """
+    y_start = np.asarray(y_start)
+    u_start = np.asarray(u_start)
     assert y_start.shape == u_start.shape
     assert 0 <= surf_start <= lens_sequence.num_surfs
     batch_dim = y_start.shape[0:]
