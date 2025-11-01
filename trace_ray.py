@@ -51,29 +51,36 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
     y[surf_start,...] = y_start[...].copy()
     u[surf_start,...] = u_start[...].copy()
 
-    if surf_start == 0: # starting at the object surface 
-        y[surf_start+1,...] = y[surf_start,...] + np.tan(u[surf_start,...])*lens_sequence.t[surf_start]
-    else: # start at an intermediate, possibly curved surface -> take surface sag into account
-        y0 = y[surf_start,...]
-        u0 = u[surf_start,...]
+    # if surf_start == 0: # starting at the object surface 
+    #     y[surf_start+1,...] = y[surf_start,...] + np.tan(u[surf_start,...])*lens_sequence.t[surf_start]
+    # else: # start at an intermediate, possibly curved surface -> take surface sag into account
+    #     y0 = y[surf_start,...]
+    #     u0 = u[surf_start,...]
 
-        zp, yp, u_prime = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
+    #     zp, yp, u_prime = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
 
-        z_sag[surf_start,...] = zp
-        y[surf_start,...] = yp # reset to value at intersection point, i.e. now surface sag is taken into account
-        u[surf_start,...] = u_prime  # u[surf_start,...] is the angle *behind* the surface.
-        y[surf_start+1,...] = yp + np.tan(u[surf_start,...])*(lens_sequence.t[surf_start] - zp)
-        y_vertexplane[surf_start+1,...] = y[surf_start+1,...].copy()
+    #     z_sag[surf_start,...] = zp
+    #     y[surf_start,...] = yp # reset to value at intersection point, i.e. now surface sag is taken into account
+    #     u[surf_start,...] = u_prime  # u[surf_start,...] is the angle *behind* the surface.
+    #     y[surf_start+1,...] = yp + np.tan(u[surf_start,...])*(lens_sequence.t[surf_start] - zp)
+    #     y_vertexplane[surf_start+1,...] = y[surf_start+1,...].copy()
 
-    for i in range(surf_start+1, lens_sequence.num_surfs):
+    for i in range(surf_start, lens_sequence.num_surfs):
         if np.isinf(lens_sequence.R[i]) or not lens_sequence.SAG:
-            u[i,...] = np.arctan((lens_sequence.n[i-1]/lens_sequence.n[i])*np.tan(u[i-1,...]) - lens_sequence.phi[i]*y[i,...]/lens_sequence.n[i])
+            if i > 0:
+                u[i,...] = np.arctan((lens_sequence.n[i-1]/lens_sequence.n[i])*np.tan(u[i-1,...]) - lens_sequence.phi[i]*y[i,...]/lens_sequence.n[i])
             y[i+1,...] = y[i,...] + np.tan(u[i,...])*lens_sequence.t[i]   
 
         # take surface sag into account
-        else:                
+        else:
+            if i == 0:
+                y[i+1,...] = y[i,...] + np.tan(u[i,...])*lens_sequence.t[i]   
+                continue
             y0 = y[i,...]
-            u0 = u[i-1,...]
+            if i == surf_start:            
+                u0 = u[i,...]
+            else:
+                u0 = u[i-1,...]
 
             zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence)
 
