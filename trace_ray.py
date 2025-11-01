@@ -44,26 +44,11 @@ def trace_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
 
         return zp, yp, u_prime
         
-
     # The ray height `y_start`` is meant to be measured at the vertex plane tangential to the surface with index `surf_start`.
     # This means that surface sag is not taken into account yet.
     y_vertexplane[surf_start,...] = y_start[...].copy()
     y[surf_start,...] = y_start[...].copy()
     u[surf_start,...] = u_start[...].copy()
-
-    # if surf_start == 0: # starting at the object surface 
-    #     y[surf_start+1,...] = y[surf_start,...] + np.tan(u[surf_start,...])*lens_sequence.t[surf_start]
-    # else: # start at an intermediate, possibly curved surface -> take surface sag into account
-    #     y0 = y[surf_start,...]
-    #     u0 = u[surf_start,...]
-
-    #     zp, yp, u_prime = intersection_spherical_with_sag(surf_start, y0, u0, lens_sequence)
-
-    #     z_sag[surf_start,...] = zp
-    #     y[surf_start,...] = yp # reset to value at intersection point, i.e. now surface sag is taken into account
-    #     u[surf_start,...] = u_prime  # u[surf_start,...] is the angle *behind* the surface.
-    #     y[surf_start+1,...] = yp + np.tan(u[surf_start,...])*(lens_sequence.t[surf_start] - zp)
-    #     y_vertexplane[surf_start+1,...] = y[surf_start+1,...].copy()
 
     for i in range(surf_start, lens_sequence.num_surfs):
         if np.isinf(lens_sequence.R[i]) or not lens_sequence.SAG:
