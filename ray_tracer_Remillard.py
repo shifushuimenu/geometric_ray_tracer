@@ -135,10 +135,6 @@ print("Aperture stop is surface", lens_sequence.AS_surf, "at", np.sum(lens_seque
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
-y_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
-u_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
-
-z_sag_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
 
 # REMOVE
 AS_surf = lens_sequence.AS_surf
@@ -153,105 +149,22 @@ stop_flag = lens_sequence.stop_flag
 Vd = lens_sequence.Vd
 # REMOVE 
 
-for f in range(num_fields):
-    print("field=", f)
-    # By definition, at the aperture stop, the chief ray intersects the optical axis.
-    y_cr[AS_surf,f] = 0.0
-
-    u_max = 0.4 #np.pi/2.0 - 0.01  # 0.4 # radians 
-    u_min = -0.4 #-np.pi/2.0 + 0.01 # -0.4 #    
-    CHIEF_RAY_FOUND = False
-    print("determining chief ray launch angle")
-    while(not CHIEF_RAY_FOUND): # and y_cr[0,f] < obj_height[f]):
-        # update launch angle using bisection search
-        # It is assumed that increasing the chief ray launch angle will 
-        # monotonically increase its height in object space.
-        u_middle = 0.5*(u_max + u_min)
-        print("u_middle=", u_middle)
-        u_cr[AS_surf-1,f] = u_middle
-        y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
-        for i in range(AS_surf-1, 0, -1):      
-            if np.isinf(R[i]) or not SAG:
-                u_cr[i-1,f] = np.arctan((n[i]/n[i-1])*np.tan(u_cr[i,f]) - phi[i]*y_cr[i,f]/n[i-1])
-                y_cr[i-1,f] = y_cr[i,f] + np.tan(u_cr[i-1,f])*t[i-1]
-
-            # take surface sag into account
-            else:
-                y0 = y_cr[i,f]
-                u0 = u_cr[i,f]
-                # intersection with spherical surface
-                # When ray tracing from right to left:
-                #   (A) Indices of refraction (before, after) are exchanged.
-                #   (B) The radius of curvature is inverted and all quantities are computed as if for that problem.
-                #   (C) The surface sag thus computed needs to be inverted. 
-                R_ = (-1)*R[i] # modification (B)
-                sgnR = np.sign(R_)
-                tanu0 = np.tan(u0)
-                Delta = R_**2 - 2*y0*tanu0*R_ - y0**2
-                assert Delta > 0, "Delta < 0, %f: No intersection point found with surface nr %d"%(Delta, i)
-                zp = (R_ - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                
-                yp = y0 + tanu0*zp 
-                theta = np.arctan(sgnR*yp/(R_-zp))
-                u_prime = sgnR*(np.arcsin(n[i]/n[i-1]*np.sin(theta + sgnR*u0)) - theta)  # modification (A)         
-
-                z_sag_cr[i,f] = (-1)*zp # modification (C)
-                y_cr[i,f] = yp # reset to value at intersection point
-                u_cr[i-1,f] = u_prime
-                y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
-
-        # criterion whether chief ray has been found
-        print("y_cr[0,f], obj_height[f]=", y_cr[0,f], obj_height[f])
-        CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
-        # update bracketing interval for binary search
-        if y_cr[0,f] < obj_height[f]:
-            print(f"y_cr[0,{f}] < obj_height[{f}]")
-            print(f"u_min = {u_min} and u_max = {u_max}")
-            u_min = u_middle 
-        else:
-            print(f"y_cr[0,{f}] > obj_height[{f}]")
-            print(f"u_min = {u_min} and u_max = {u_max}")
-            u_max = u_middle
-
-    print(f"CHIEF_RAY_FOUND = {CHIEF_RAY_FOUND}, y_cr[0,f]={y_cr[0,f]}")
-    # REMOVE 
-    if f == 0 :
-        print("lens_sequence before=", id(lens_sequence))        
-        y_cr_test, u_cr_test, z_sag_test, _ = trace_tangential_ray(y_cr[AS_surf, f], u_middle, lens_sequence, surf_start=AS_surf, forward=False)    
-        print("u_cr[:,0]=", u_cr[:,0])
-        print("u_cr_test[:]=", u_cr_test[:])
-        print("y_cr[:,0]=", y_cr[:,0])
-        print("y_cr_test[:]=", y_cr_test[:])
-        print("lens_sequence after=", lens_sequence)        
-    # REMOVE
-
-
-y_cr_test, u_cr_test = find_chief_rays(lens_sequence, obj_height)
-print("y_cr=", y_cr[:,0])
-print("y_cr_test=", y_cr_test[:,0])
-exit(1)
+y_cr, u_cr, z_sag_cr = find_chief_rays(lens_sequence, obj_height)
 
 # entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
-# for f in range(num_fields-1):
-#     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
 
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
 ObjNA = n[0]*np.sin(marginal_ray_angle)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
 
-y_tmp = np.zeros((len(t)+1, num_fields))
-y_tmp[0:len(y_cr[:,0]),:] = y_cr[:,:]
-z_sag_tmp = np.zeros((len(t)+1, num_fields))
-z_sag_tmp[0:len(z_sag_cr[:,0]),:] = z_sag_cr[:,:]
-
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray(t, y_tmp[:,f], z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
+        fig = plot_ray(t, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
     else:
-        fig = plot_ray(t, y_tmp[:,f], fig, z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
+        fig = plot_ray(t, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
 
-# plt.show()
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 

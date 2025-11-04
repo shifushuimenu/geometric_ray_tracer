@@ -83,7 +83,7 @@ def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=
     else: # raytrace backward
 
         assert surf_start > 0
-        lens_sequence_bw = dataclasses.replace(lens_sequence, forward=False, R = -lens_sequence.R[:])  # modification (B)
+        lens_sequence_bw = dataclasses.replace(lens_sequence, forward=False, R=-lens_sequence.R[:])  # modification (B)
 
         u[surf_start-1,...] = u_start[...].copy()
         y[surf_start,...] = y_start[...].copy()
