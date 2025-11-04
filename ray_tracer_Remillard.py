@@ -18,7 +18,9 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from time import time
 
-from trace_ray import LensSequence, trace_tangential_ray
+from lens import LensSequence, read_lens
+from trace_ray import trace_tangential_ray
+from pupils_and_stops import find_chief_rays
 
 mpl.rcParams["lines.linewidth"] = 1
     
@@ -113,64 +115,14 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
-# Load txt file, determine the surface powers and locate the surface which 
-# is the aperture stop. Make sure there is only one aperture stop. 
-
-# Take surface sag into account.
-SAG = True
-
 lens_file = sys.argv[1]
-max_obj_height = float(sys.argv[2])
-EPD = float(sys.argv[3])
+max_obj_height = float(sys.argv[2]) 
+EPD = float(sys.argv[3]) # entrance pupil diameter
 
-lens_layout = np.loadtxt(lens_file, comments="#", skiprows=1)
-num_surfs = lens_layout.shape[0]
+lens_sequence = read_lens(lens_file, SAG = True)
 
-stop_flag = np.zeros(num_surfs)
-R = np.zeros(num_surfs, dtype=np.float64)
-t = np.zeros(num_surfs, dtype=np.float64)
-n = np.zeros(num_surfs, dtype=np.float64)
-Vd = np.zeros(num_surfs, dtype=np.float64)
-phi = np.zeros(num_surfs, dtype=np.float64)
-
-t[0] = lens_layout[0,3]
-AS_surf = 0
-for s in range(0, num_surfs):
-    stop_flag[s] = lens_layout[s,1]
-    R[s] = lens_layout[s, 2] 
-    t[s] = lens_layout[s, 3]
-    n[s] = lens_layout[s, 4]
-    Vd[s] = lens_layout[s, 5]
-    if s  > 0:
-        phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
-
-# zdist[s] is the total distance of surface s from the first vertex of the lens system.
-# zdist[0] < 0 is the object distance.
-zdist = np.zeros(num_surfs+1)
-zdist[0] = -t[0]
-zdist[1] = 0
-zdist[2:] = np.cumsum(t[1:])
-
-
-# special case: first surface is the aperture stop
-if stop_flag[1] == 1:
-    AS_surf = 1
-    pass # MISSING
-
-# Find the aperture stop and verify that there is only one aperture stop.
-found_AS = False
-for s in range(1, num_surfs):    
-    if stop_flag[s] == 1:
-        if not found_AS:
-            AS_surf = s
-            found_AS = True
-        else:
-            raise ValueError("There can be only one aperture stop.")
-
-if AS_surf == 0:
-    raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
-
-print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from the front vertex.")
+print("Aperture stop is surface", lens_sequence.AS_surf, "at", np.sum(lens_sequence.t[1:lens_sequence.AS_surf]), 
+      f"{lens_sequence.lens_unit} from the front vertex.")
 
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
@@ -183,10 +135,23 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
-y_cr = np.zeros((AS_surf+1, num_fields))
-u_cr = np.zeros((AS_surf+1, num_fields))
+y_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
+u_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
 
-z_sag_cr = np.zeros((AS_surf+1, num_fields))
+z_sag_cr = np.zeros((lens_sequence.AS_surf+1, num_fields))
+
+# REMOVE
+AS_surf = lens_sequence.AS_surf
+SAG = lens_sequence.SAG
+n = lens_sequence.n
+phi = lens_sequence.phi
+t = lens_sequence.t
+R = lens_sequence.R
+num_surfs = lens_sequence.num_surfs
+zdist = lens_sequence.zdist
+stop_flag = lens_sequence.stop_flag
+Vd = lens_sequence.Vd
+# REMOVE 
 
 for f in range(num_fields):
     print("field=", f)
@@ -203,7 +168,7 @@ for f in range(num_fields):
         # monotonically increase its height in object space.
         u_middle = 0.5*(u_max + u_min)
         print("u_middle=", u_middle)
-        u_cr[AS_surf-1,f] = u_middle   
+        u_cr[AS_surf-1,f] = u_middle
         y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
         for i in range(AS_surf-1, 0, -1):      
             if np.isinf(R[i]) or not SAG:
@@ -234,6 +199,15 @@ for f in range(num_fields):
                 u_cr[i-1,f] = u_prime
                 y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
+        # REMOVE 
+        y_cr_test, u_cr_test, z_sag_test, _ = trace_tangential_ray(y_cr[AS_surf, f], u_middle, lens_sequence, surf_start=AS_surf, forward=False)
+        if f == 0 :
+            print("u_cr[:,0]=", u_cr[:,0])
+            print("u_cr_test[:]=", u_cr_test[:])
+            print("y_cr[:,0]=", u_cr[:,0])
+            print("y_cr_test[:]=", u_cr_test[:])            
+        # REMOVE
+
         # criterion whether chief ray has been found
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
         # update bracketing interval for binary search
@@ -245,6 +219,11 @@ for f in range(num_fields):
             print(f"y_cr[0,{f}] > obj_height[{f}]")
             print(f"u_min = {u_min} and u_max = {u_max}")
             u_max = u_middle
+
+# y_cr_test, u_cr_test = find_chief_rays(lens_sequence, obj_height)
+# print("y_cr=", y_cr[:,0])
+# print("y_cr_test=", y_cr_test[:,0])
+# exit(1)
 
 # entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
@@ -318,18 +297,6 @@ for f in range(num_fields):
 
 t2 = time()
 print("elapsed =", t2 - t1)
-
-lens_sequence = LensSequence(
-    num_surfs, 
-    AS_surf,
-    SAG,
-    "mm",
-    R[:],
-    t[:],
-    n[:],
-    Vd[:],
-    phi[:],
-)
 
 y_test, u_test, z_sag_test, y_vertexplane_test = trace_tangential_ray(y[0,:,:], u[0,:,:], lens_sequence, surf_start=0)
 y_test2, u_test2, z_sag_test2, y_vertexplane_test2 = trace_tangential_ray(y_vertexplane_test[5,:,:], u[4,:,:], lens_sequence, surf_start=5)

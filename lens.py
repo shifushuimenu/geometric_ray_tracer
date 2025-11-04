@@ -7,6 +7,7 @@ __about__ = ["LensSequence", "read_lens"]
 class LensSequence(object):
     num_surfs: int = 3  # number of surfaces including object surface 
     AS_surf: int = 1    # index of surface which is the aperture stop
+    stop_flag: np.ndarray = np.array([0,1,0])
     SAG: bool = True    # Should surface sag be taken into account ?
     lens_unit: str = "mm" # lens unit millimeter
     R: np.ndarray = np.array([np.inf, np.inf, np.inf])  # radii of curvate 
@@ -21,7 +22,8 @@ class LensSequence(object):
 def read_lens(filename: str, SAG: bool = True) -> LensSequence:
     """
     Read lens description file and initialize LensSequence object.
-    Determine the aperture stop surface.
+    Load txt file, determine the surface powers and locate the surface which 
+    is the aperture stop. Make sure there is only one aperture stop. 
 
     SAG = True takes surface sag into account.
     """
@@ -68,6 +70,7 @@ def read_lens(filename: str, SAG: bool = True) -> LensSequence:
     lens_sequence = LensSequence(
         num_surfs, 
         AS_surf, 
+        stop_flag,
         SAG,
         "mm",
         R[:],
