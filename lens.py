@@ -79,7 +79,7 @@ def read_lens(filename: str, SAG: bool = True) -> LensSequence:
         n[:],
         Vd[:],
         phi[:],
-        forward=True
+        forward=True,
     )
 
     return lens_sequence

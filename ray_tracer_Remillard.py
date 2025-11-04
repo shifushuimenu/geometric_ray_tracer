@@ -199,16 +199,8 @@ for f in range(num_fields):
                 u_cr[i-1,f] = u_prime
                 y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
 
-        # REMOVE 
-        y_cr_test, u_cr_test, z_sag_test, _ = trace_tangential_ray(y_cr[AS_surf, f], u_middle, lens_sequence, surf_start=AS_surf, forward=False)
-        if f == 0 :
-            print("u_cr[:,0]=", u_cr[:,0])
-            print("u_cr_test[:]=", u_cr_test[:])
-            print("y_cr[:,0]=", u_cr[:,0])
-            print("y_cr_test[:]=", u_cr_test[:])            
-        # REMOVE
-
         # criterion whether chief ray has been found
+        print("y_cr[0,f], obj_height[f]=", y_cr[0,f], obj_height[f])
         CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
         # update bracketing interval for binary search
         if y_cr[0,f] < obj_height[f]:
@@ -220,10 +212,23 @@ for f in range(num_fields):
             print(f"u_min = {u_min} and u_max = {u_max}")
             u_max = u_middle
 
-# y_cr_test, u_cr_test = find_chief_rays(lens_sequence, obj_height)
-# print("y_cr=", y_cr[:,0])
-# print("y_cr_test=", y_cr_test[:,0])
-# exit(1)
+    print(f"CHIEF_RAY_FOUND = {CHIEF_RAY_FOUND}, y_cr[0,f]={y_cr[0,f]}")
+    # REMOVE 
+    if f == 0 :
+        print("lens_sequence before=", id(lens_sequence))        
+        y_cr_test, u_cr_test, z_sag_test, _ = trace_tangential_ray(y_cr[AS_surf, f], u_middle, lens_sequence, surf_start=AS_surf, forward=False)    
+        print("u_cr[:,0]=", u_cr[:,0])
+        print("u_cr_test[:]=", u_cr_test[:])
+        print("y_cr[:,0]=", y_cr[:,0])
+        print("y_cr_test[:]=", y_cr_test[:])
+        print("lens_sequence after=", lens_sequence)        
+    # REMOVE
+
+
+y_cr_test, u_cr_test = find_chief_rays(lens_sequence, obj_height)
+print("y_cr=", y_cr[:,0])
+print("y_cr_test=", y_cr_test[:,0])
+exit(1)
 
 # entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
