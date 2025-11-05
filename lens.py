@@ -19,7 +19,7 @@ class LensSequence(object):
     forward: bool = True                                # traverse lens system forward or backward
 
 
-def read_lens(filename: str, SAG: bool = True) -> LensSequence:
+def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequence:
     """
     Read lens description file and initialize LensSequence object.
     Load txt file, determine the surface powers and locate the surface which 
@@ -67,12 +67,16 @@ def read_lens(filename: str, SAG: bool = True) -> LensSequence:
     if AS_surf == 0:
         raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
 
+    print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), 
+          f"{lens_unit} from the front vertex.")
+
+
     lens_sequence = LensSequence(
         num_surfs, 
         AS_surf, 
         stop_flag,
         SAG,
-        "mm",
+        lens_unit,
         R[:],
         t[:],
         zdist[:],
