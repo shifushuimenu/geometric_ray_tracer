@@ -4,11 +4,11 @@ from visualize import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-# LS = read_lens("lens_files/test_doublet_realXP.txt")
-LS = read_lens("lens_files/stepper_lens.txt")
+LS = read_lens("lens_files/test_doublet_realXP.txt")
+# LS = read_lens("lens_files/stepper_lens.txt")
 
 obj_height= [8.0, 4.0]
-obj_angle = [0.0, 0.0]
+obj_angle = [0.0, -0.1]
 
 # 1. Trace ray forward from the image surface.
 y, u, z_sag, _ = trace_tangential_ray(obj_height, obj_angle, LS, LS.AS_surf, True)

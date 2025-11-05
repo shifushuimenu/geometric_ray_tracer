@@ -72,7 +72,7 @@ def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=
 
         for i in range(surf_start, lens_sequence.num_surfs):
             if np.isinf(lens_sequence.R[i]) or not lens_sequence.SAG:
-                if i > 0:
+                if i > surf_start:
                     u[i,...] = np.arctan((lens_sequence.n[i-1]/lens_sequence.n[i])*np.tan(u[i-1,...]) - lens_sequence.phi[i]*y[i,...]/lens_sequence.n[i])
                 y[i+1,...] = y[i,...] + np.tan(u[i,...])*lens_sequence.t[i]   
 
