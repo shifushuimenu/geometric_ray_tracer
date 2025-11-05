@@ -319,8 +319,8 @@ for f in range(num_fields):
         fig = plot_ray(t, y_test[:,r,f], fig, z_sag_test[:,r,f], color=colors[f])
         fig = plot_ray(t, y_test2[:,r,f], fig, z_sag_test2[:,r,f], color=colors[f])
         # fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
-        fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="k")
-        fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="k")
+        fig = plot_ray(t, y_cr[:,0], fig, z_sag_cr[:,0], color="k")
+        fig = plot_ray(t, y_cr[:,1], fig, z_sag_cr[:,1], color="k")
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
