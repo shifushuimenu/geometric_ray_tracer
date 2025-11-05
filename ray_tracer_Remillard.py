@@ -118,10 +118,10 @@ u_pupil[AS_surf:,0] = u[AS_surf:,num_rays-1,0]
 # any other ray would be just as good. 
 y_pupil[AS_surf,1] = stop_radius
 if np.isclose(t[AS_surf], 0):
-    dist_left_of_AS = t[AS_surf+1]
+    dist_right_of_AS = t[AS_surf+1]
 else:
-    dist_left_of_AS = t[AS_surf]
-u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_left_of_AS)
+    dist_right_of_AS = t[AS_surf]
+u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_right_of_AS)
 # First check whether the exit pupil is virtual, i.e. ray 1 and ray 2 
 # intersect to the left of the first lens element behind the aperture stop.
 z_intersection = - stop_radius/(np.tan(u_pupil[AS_surf+1,0]) - np.tan(u_pupil[AS_surf,1]))
@@ -134,12 +134,19 @@ if z_intersection < 0:
     print(f"exit pupil semidiameter XP_radius={XP_radius}")
 else:
     print(f"exit pupil is a real image of the aperture stop")
-    y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf)
+    print("u_pupil 1=", u_pupil)
+    y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
+    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(stop_radius, 0.0, lens_sequence, surf_start=AS_surf-1, forward=True)
+    print("y_tmp=", y_tmp)
+    print("u_tmp=", u_tmp)
+
+    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(stop_radius, np.arctan(-stop_radius/dist_right_of_AS), lens_sequence, surf_start=AS_surf-1, forward=True)
+    # print("y_tmp=", y_tmp)
     # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
     # for s in range(AS_surf+1, num_surfs+1, 1):
     #     pass
-    fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="c")
-    fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="y")
+    fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="r")
+    fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="r")
         
 
 # The heights of the outermost rays at each surface determine its clear aperture radius.
@@ -178,7 +185,7 @@ ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
 # Calculate magnification 
 magnification = obj_height[0] / y[num_surfs, num_rays//2, 0] # As image height we take the height of the chief ray.
 
-if False:
+if True:
     # SECTION 4: Plot
     colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
     for f in range(num_fields):

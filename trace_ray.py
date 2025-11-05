@@ -3,6 +3,8 @@ from utils import timer_func
 import dataclasses
 from lens import LensSequence
 
+__all__ = ["trace_tangential_ray"]
+
 @timer_func
 def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
     """
@@ -12,13 +14,29 @@ def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=
     When ray tracing from right to left:
        (A) Indices of refraction (before, after) are exchanged.
        (B) The radius of curvature is inverted and all quantities are computed as if for that problem.
-       (C) The surface sag thus computed needs to be inverted. 
+       (C) The surface sag thus computed needs to be inverted.
+
+    Parameters
+    ----------
+    y_start : array_like
+    u_start : array_like
+    lens_sequence: LensSequence object
+    surf_start : int, default=0
+    forward : bool, default=True
+
+    Returns
+    -------
+    y
+    u
+    z_sag
+    y_vertexplane
     """
     y_start = np.asarray(y_start)
     u_start = np.asarray(u_start)
     assert y_start.shape == u_start.shape
     assert 0 <= surf_start <= lens_sequence.num_surfs
     batch_dim = y_start.shape[0:]
+
     y = np.zeros((lens_sequence.num_surfs+1,)+batch_dim) # ray height at the curved surface
     y_vertexplane = np.zeros_like(y)  # ray height at the vertex plane
     u = np.zeros_like(y)
@@ -72,9 +90,10 @@ def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=
                 zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence, forward=True)
 
                 z_sag[i,...] = zp
-                y[i,...] = yp 
-                u[i,...] = u_prime 
-                y[i+1,...] = yp + np.tan(u_prime)*(lens_sequence.t[i] - zp)
+                y[i,...] = yp
+                if i > surf_start:
+                    u[i,...] = u_prime 
+                y[i+1,...] = yp + np.tan(u[i,...])*(lens_sequence.t[i] - zp)
                 y_vertexplane[i+1,...] = y[i+1,...].copy()
 
         u[lens_sequence.num_surfs,...] = u[lens_sequence.num_surfs-1,...] # The image surface does not refract
