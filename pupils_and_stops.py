@@ -26,7 +26,7 @@ def find_chief_rays(lens_sequence, obj_height, eps=1e-6):
 
         print("field=", f)  
         if obj_height[f] == 0.0:
-            # y_cr and u_cr are zero
+            # on-axis field point: y_cr and u_cr are zero
             continue
         
         y_cr[lens_sequence.AS_surf,f] = 0.0
