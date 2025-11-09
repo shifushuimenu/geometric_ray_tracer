@@ -183,7 +183,7 @@ TTL = np.sum(t[1:num_surfs])
 # Calculate the image space numerical aperture from the angle between the marginal ray and the optical axis in image space.
 ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
 # Calculate magnification 
-magnification = obj_height[0] / y[num_surfs, num_rays//2, 0] # As image height we take the height of the chief ray.
+magnification = y[num_surfs, num_rays//2, 0] / obj_height[0] # As image height we take the height of the chief ray.
 
 if False:
     # SECTION 4: Plot
@@ -199,33 +199,51 @@ if False:
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
 plot_surfaces(t, R, heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
-plt.show()
+# plt.show()
 
 # SECTION 5: Calculate aberrations
 # Seidel coefficient for third-order monochromatic ray aberrations
 # Copy from Remillard's code
 CRI = np.zeros(num_surfs)
 MRI = np.zeros(num_surfs)
+# chief ray for the ray bundle *at maximum object* height 
+y_chief = y[:,num_rays//2,0]
+u_chief = u[:,num_rays//2,0]
+y_chief_test, u_chief_test, zsag_chief_test, _ = trace_tangential_ray(y_cr[0,0], -u_cr[0,0], lens_sequence)
+fig = plot_ray(t, y_cr[:,0], fig, np.zeros_like(y_chief), color="b")
+fig = plot_ray(t, y_chief_test[:], fig, z_sag=zsag_chief_test, color="g", dashtype="--")
+# marginal ray for the *on-axis* ray bundle
+y_marg = y[:,0,num_fields-1]
+u_marg = u[:,0,num_fields-1]
+
+y_marg_test, u_marg_test, zsag_mag_test, _ = trace_tangential_ray(y_cr[0,0], -u_cr[0,0]-marginal_ray_angle, lens_sequence)
+fig = plot_ray(t, y_marg_test[:], fig, z_sag=zsag_mag_test, color="y", dashtype="--")
+
+fig = plot_ray(t, y_marg[:], fig, np.zeros_like(y_marg), color="g")
+plt.show()
 L = np.zeros(num_surfs)
-S1 = np.zeros(num_surfs)
-S2 = np.zeros(num_surfs)
-S3 = np.zeros(num_surfs)
-S4 = np.zeros(num_surfs)
-S5 = np.zeros(num_surfs)
+S1 = np.zeros(num_surfs) # spherical
+S2 = np.zeros(num_surfs) # coma
+S3 = np.zeros(num_surfs) # astigmatism
+S4 = np.zeros(num_surfs) # field curvature
+S5 = np.zeros(num_surfs) # distortion
 PetzSum = 0.0
 for i in range(1,num_surfs):
-    MRI[i] = n[i-1]*(y[i,0,num_fields-1]/R[i] + np.tan(u[i-1,0,num_fields-1])) # marginal ray for the *on-axis* ray bundle
-    CRI[i] = n[i-1]*(y[i,num_rays//2,0]/R[i] + np.tan(u[i-1,num_rays//2,0])) # chief ray for the ray bundle *at maximum object* height 
-    L[i] = n[i-1]*(y[i,0,num_fields-1]*np.tan(u[i-1,num_rays//2,0]) - y[i,num_rays//2,0]*np.tan(u[i-1,0,num_fields-1])) # Lagrange invariant for the above two rays
-    S1[i] = -MRI[i]*MRI[i]*y[i,0,num_fields-1]*(np.tan(u[i,0,num_fields-1])/n[i] - np.tan(u[i-1,0,num_fields-1])/n[i-1])
+    MRI[i] = n[i]*(y_marg[i]/R[i] + np.tan(u_marg[i])) # marginal ray "invariant" for the *on-axis* ray bundle (an invariant at a refracting surface but not under propagation)
+    CRI[i] = n[i]*(y_chief[i]/R[i] + np.tan(u_chief[i])) # chief ray for the ray bundle *at maximum object* height 
+    L[i] = n[i-1]*(y_marg[i]*np.tan(u_chief[i-1]) - y_chief[i]*np.tan(u_marg[i-1])) # Lagrange invariant for the above two rays
+    S1[i] = -MRI[i]*MRI[i]*y_marg[i]*(np.tan(u_marg[i])/n[i] - np.tan(u_marg[i-1])/n[i-1])
     S2[i] = S1[i]*CRI[i]/MRI[i]
     S3[i] = S2[i]*CRI[i]/MRI[i]
     S4[i] = -L[i]*L[i]*((1/n[i]) - (1/n[i-1]))/R[i]
-    S5[i] = (S3[i] + S4[i])*CRI[i]/MRI[i]
+    S5[i] = -(S3[i] + S4[i])*CRI[i]/MRI[i]
     PetzSum += (1/R[i])*((1/n[i]) - (1/n[i-1]))
 
 S1sum = np.sum(S1); S2sum = np.sum(S2); S3sum = np.sum(S3); S4sum = np.sum(S4); S5sum = np.sum(S5)
 PetzvalRadius = 1.0 / PetzSum
+
+print("MRI=", MRI)
+print("S1=", S1)
 
 # SECTION 6: Output 
 with open("lens_summary.txt", "w") as fh:
