@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Iterable, Tuple
 from utils import timer_func, RayIntersectionNotFoundError
 import dataclasses
 from lens import LensSequence
@@ -6,7 +7,8 @@ from lens import LensSequence
 __all__ = ["trace_tangential_ray"]
 
 @timer_func
-def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=True):
+def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: LensSequence, surf_start: int=0, 
+                         forward: bool=True) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Trace a batch of rays forward (left-to-right) or backwards (right-to-left) till right after the last or 
     right before the first surface of the lens system. Surface sag is considered. 
@@ -42,17 +44,25 @@ def trace_tangential_ray(y_start, u_start, lens_sequence, surf_start=0, forward=
     u = np.zeros_like(y)
     z_sag = np.zeros_like(y)
 
-    def intersection_spherical_with_sag(surf, y0, u0, lens_sequence, forward=True):
+    def intersection_spherical_with_sag(surf: float, y0: np.ndarray, u0: np.ndarray, 
+                                        lens_sequence: LensSequence, forward: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """intersection with a spherical surface with positive or negative radius of curvature"""
         assert surf > 0
         assert lens_sequence.forward == forward
         sgnR = np.sign(lens_sequence.R[surf]) # The formula depends on the sign of the radius of curvature.
         tanu0 = np.tan(u0)
-        Delta = lens_sequence.R[surf]**2 - 2*y0*tanu0*lens_sequence.R[surf] - y0**2            
+        Delta = lens_sequence.R[surf]**2 - 2*y0*tanu0*lens_sequence.R[surf] - y0**2
         if not np.all(Delta > 0):
-            raise RayIntersectionNotFoundError #, "Delta[0] < 0, %f"%(Delta[0])  
+            raise RayIntersectionNotFoundError("Delta < 0") #, "Delta[0] < 0, %f"%(Delta[0])  
         zp = (lens_sequence.R[surf] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
-        yp = y0 + tanu0*zp            
+        yp = y0 + tanu0*zp
+        
+        if (np.abs(yp) > lens_sequence.y_nnint[surf]).any():
+            print("yp=", yp, "y_nnint=", lens_sequence.y_nnint[surf], "z_nnint=", lens_sequence.z_nnint[surf], "surf=", surf)
+            pass
+            # raise RayIntersectionNotFoundError(f"Ray intersection point (zp,yp)=({zp},{yp}) outside maximal clear" 
+            #                                    f"aperture of the surface nr {surf}")
+
         theta = np.arctan(sgnR*yp/(lens_sequence.R[surf]-zp))
         if forward:
             n_ratio = lens_sequence.n[surf-1]/lens_sequence.n[surf]

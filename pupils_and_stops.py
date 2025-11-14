@@ -4,8 +4,6 @@ from utils import RayIntersectionNotFoundError
 
 def find_chief_rays(lens_sequence, obj_height, eps=1e-6):
     """
-
-
     For all field positions given in `obj_height[0:num_fields]`, find the chief ray launch 
     angles at the aperture stop. The launch angles are modified using a binary search 
     and the ray is traced backwards from the center of the aperture stop until it hits the object position within `eps` tolerance
@@ -48,7 +46,8 @@ def find_chief_rays(lens_sequence, obj_height, eps=1e-6):
             INTERSECTION_FOUND = True
 
         if y[0] < obj_height[f]: 
-            raise ValueError(f"Object height {obj_height[f]} is too large, it cannot be reached from the AS with any chief ray launch angle.")
+            raise ValueError(f"Object height {obj_height[f]} is too large, it cannot be reached "
+                             f"from the aperture stop with any chief ray launch angle.")
 
         CHIEF_RAY_FOUND = False
         print("determining chief ray launch angle")        

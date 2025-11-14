@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from time import time
 
-from lens import LensSequence, read_lens
+from lens import read_lens
 from trace_ray import trace_tangential_ray
 from pupils_and_stops import find_chief_rays
 from visualize import plot_ray, plot_surfaces
@@ -185,7 +185,7 @@ ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
 # Calculate magnification 
 magnification = y[num_surfs, num_rays//2, 0] / obj_height[0] # As image height we take the height of the chief ray.
 
-if False:
+if True:
     # SECTION 4: Plot
     colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
     for f in range(num_fields):
@@ -197,9 +197,16 @@ if False:
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
-plot_surfaces(t, R, heights, n, fig)
+plot_surfaces(t, R, 5*heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 # plt.show()
+
+ax = fig.axes[0]
+ax.plot(lens_sequence.z_nnint[1:-1], lens_sequence.y_nnint[1:-1], '-o')
+print("z_nnint=", lens_sequence.z_nnint)
+print("y_nnint=", lens_sequence.y_nnint)
+plt.show()
+exit(1)
 
 # SECTION 5: Calculate aberrations
 # Seidel coefficient for third-order monochromatic ray aberrations
