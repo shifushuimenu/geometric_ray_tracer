@@ -29,7 +29,7 @@ def find_chief_rays(lens_sequence, obj_height, eps=1e-6):
         
         y_cr[lens_sequence.AS_surf,f] = 0.0
 
-        u_max = np.pi/2.0 - 1e-3  # 0.4 # radians 
+        u_max = np.pi/4.0 #np.pi/2.0 - 1e-3  # 0.4 # radians 
         u_min = -u_max
 
         # Choose the initial cone of angles 
@@ -39,13 +39,15 @@ def find_chief_rays(lens_sequence, obj_height, eps=1e-6):
                 y, u, z_sag, _ = trace_tangential_ray(0.0, u_max, lens_sequence, lens_sequence.AS_surf, forward=False)
             except RayIntersectionNotFoundError:
                 # make the opening angle of the cone within which the chief ray launch angle is searched smaller
-                u_max -= 0.1*u_max
-                u_min -= 0.1*u_min
+                u_max -= 0.01*u_max
+                u_min -= 0.01*u_min
                 print(f"RayIntersectionNotFoundError u_min={u_min}, u_max={u_max}")
                 continue
             INTERSECTION_FOUND = True
+            print("INTERSECTION FOUND")
 
         if y[0] < obj_height[f]: 
+            print("y[0]=", y[0])
             raise ValueError(f"Object height {obj_height[f]} is too large, it cannot be reached "
                              f"from the aperture stop with any chief ray launch angle.")
 

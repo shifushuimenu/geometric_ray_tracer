@@ -45,32 +45,31 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
     z_sag = np.zeros_like(y)
 
     def intersection_spherical_with_sag(surf: float, y0: np.ndarray, u0: np.ndarray, 
-                                        lens_sequence: LensSequence, forward: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                                        R: np.ndarray, n: np.ndarray, y_maxCA, 
+                                        forward: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """intersection with a spherical surface with positive or negative radius of curvature"""
         assert surf > 0
-        assert lens_sequence.forward == forward
-        sgnR = np.sign(lens_sequence.R[surf]) # The formula depends on the sign of the radius of curvature.
+        sgnR = np.sign(R[surf]) # The formula depends on the sign of the radius of curvature.
         tanu0 = np.tan(u0)
-        Delta = lens_sequence.R[surf]**2 - 2*y0*tanu0*lens_sequence.R[surf] - y0**2
+        Delta = R[surf]**2 - 2*y0*tanu0*R[surf] - y0**2
         if not np.all(Delta > 0):
             raise RayIntersectionNotFoundError("Delta < 0") #, "Delta[0] < 0, %f"%(Delta[0])  
-        zp = (lens_sequence.R[surf] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
+        zp = (R[surf] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                     
         yp = y0 + tanu0*zp
         
-        if (np.abs(yp) > lens_sequence.y_nnint[surf]).any():
-            print("yp=", yp, "y_nnint=", lens_sequence.y_nnint[surf], "z_nnint=", lens_sequence.z_nnint[surf], "surf=", surf)
-            # raise RayIntersectionNotFoundError(f"Ray intersection point (zp,yp)=({zp},{yp}) outside maximal clear" 
-            #                                    f"aperture of the surface nr {surf}")
+        if (np.abs(yp) > y_maxCA[surf]).any():
+            raise RayIntersectionNotFoundError(f"Ray intersection point yp={np.max(yp)} outside maximal clear" 
+                                               f"aperture {y_maxCA[surf]} of the surface nr {surf}")
 
-        theta = np.arctan(sgnR*yp/(lens_sequence.R[surf]-zp))
+        theta = np.arctan(sgnR*yp/(R[surf]-zp))
         if forward:
-            n_ratio = lens_sequence.n[surf-1]/lens_sequence.n[surf]
+            n_ratio = n[surf-1]/n[surf]
         else: # modification (A)
-            n_ratio = lens_sequence.n[surf]/lens_sequence.n[surf-1]
+            n_ratio = n[surf]/n[surf-1]
         u_prime = sgnR*(np.arcsin(n_ratio*np.sin(theta + sgnR*u0)) - theta)
 
         return zp, yp, u_prime
-
+    
 
     if forward == True:
 
@@ -97,7 +96,8 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
                 else:
                     u0 = u[i-1,...]
 
-                zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence, forward=True)
+                zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence.R, 
+                                                                  lens_sequence.n, lens_sequence.y_nnint, forward=True)
 
                 z_sag[i,...] = zp
                 y[i,...] = yp
@@ -112,7 +112,7 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
     else: # raytrace backward
 
         assert surf_start > 0
-        lens_sequence_bw = dataclasses.replace(lens_sequence, forward=False, R=-lens_sequence.R[:])  # modification (B)
+        R=-lens_sequence.R[:]  # modification (B)
 
         u[surf_start-1,...] = u_start[...].copy()
         y[surf_start,...] = y_start[...].copy()
@@ -120,14 +120,14 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
         y[surf_start-1,...] = y[surf_start,...] + np.tan(u[surf_start-1,...])*lens_sequence.t[surf_start-1]
 
         for i in range(surf_start-1, 0, -1):
-            if np.isinf(lens_sequence_bw.R[i]) or not lens_sequence.SAG:
+            if np.isinf(R[i]) or not lens_sequence.SAG:
                 z_sag[i,...] = 0.0
                 u[i-1,...] = np.arctan((lens_sequence.n[i]/lens_sequence.n[i-1])*np.tan(u[i,...]) - lens_sequence.phi[i]*y[i,...]/lens_sequence.n[i-1])
                 y[i-1,...] = y[i,...] + np.tan(u[i-1,...])*lens_sequence.t[i-1]
             else:
                 y0 = y[i,...]
                 u0 = u[i,...]
-                zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, lens_sequence_bw, forward=False)
+                zp, yp, u_prime = intersection_spherical_with_sag(i, y0, u0, R, lens_sequence.n, lens_sequence.y_nnint, forward=False)
                 z_sag[i,...] = (-1)*zp # modification (C)
                 y[i,...] = yp # reset to value at intersection point
                 u[i-1,...] = u_prime
