@@ -4,10 +4,10 @@ from visualize import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-LS = read_lens("lens_files/test_doublet_realXP.txt")
+LS = read_lens("lens_files/lens_Kidger2004.txt")
 # LS = read_lens("lens_files/stepper_lens.txt")
 
-obj_height= [8.0, 4.0]
+obj_height= [4.0, 2.0]
 obj_angle = [0.0, -0.1]
 
 # 1. Trace ray forward from the image surface.

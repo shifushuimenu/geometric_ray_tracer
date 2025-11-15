@@ -59,7 +59,6 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
         
         if (np.abs(yp) > lens_sequence.y_nnint[surf]).any():
             print("yp=", yp, "y_nnint=", lens_sequence.y_nnint[surf], "z_nnint=", lens_sequence.z_nnint[surf], "surf=", surf)
-            pass
             # raise RayIntersectionNotFoundError(f"Ray intersection point (zp,yp)=({zp},{yp}) outside maximal clear" 
             #                                    f"aperture of the surface nr {surf}")
 

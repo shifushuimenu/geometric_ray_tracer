@@ -125,11 +125,28 @@ def _surface_intersection_point(R_first: float, R_second: float, t: float) -> fl
     # Find intersection points of neighbouring surfaces in a plane containing the optical axis.
 
     # two parallel planes
-    if (np.abs(R_first) == np.abs(R_second) == np.inf):
+    if (np.isinf(R_first) and np.isinf(R_second)):
         return None, None
+    
+    # any of the radii is smaller half the distance between the surfaces
+    if ((abs(R_first) < t/2.0) or (abs(R_second) < t/2.0)):
+        return 0, min(abs(R_first), abs(R_second))
         
     if (R_first < 0 and R_second > 0 and t > 0): # concave lens element
         return None, None
+
+    if (np.isinf(R_first) and R_second < 0):
+        z_int = 0 # intersection at the first surface
+        absy_int = np.sqrt(-2*t*R_second - t**2)
+        return z_int, absy_int
+
+    if (np.isinf(R_second) and R_first > 0):
+        z_int = t # intersection at the second surface 
+        absy_int = np.sqrt(2*t*R_first - t**2)
+        return z_int, absy_int
+
+    if ((np.isinf(R_first) and R_second > 0) or (np.isinf(R_second) and R_first < 0)):
+        return 0, np.inf
 
     CONVEX_OR_PLANOCONVEX = (R_first > 0 and R_second < 0) # convex or plano-convex
     MENISCUS_CURVED_LEFT = R_first < 0 and R_second < 0 and np.abs(R_first) > np.abs(R_second) # meniscus lens, curved to the left
@@ -147,7 +164,8 @@ def _surface_intersection_point(R_first: float, R_second: float, t: float) -> fl
 
 def _calc_surface_intersections(lens_sequence: LensSequence) -> Tuple[Iterable[float], Iterable[float]]:
     """
-    Calculate maximal clear apertures for every surface such that curved surfaces do not intersect.
+    For each surface, calculate the intersection points with neighbour surfaces (in the plane in which the optical axis lies).
+    This is used to calculate maximal clear apertures for every surface such that curved surfaces do not intersect.
     
     Parameters
     ----------
@@ -164,29 +182,20 @@ def _calc_surface_intersections(lens_sequence: LensSequence) -> Tuple[Iterable[f
     absy_int = np.empty(lens_sequence.num_surfs+1)
     absy_int.fill(np.inf)
 
+    # IMPROVE: There is a problem with the last surface.
     for i in range(1, lens_sequence.num_surfs-1): # exclude object and image surface
-        z_tmp = []
-        absy_tmp = []
         if (lens_sequence.R[i] < 0): # surface curved to the left
-            # check intersection points with up to three surfaces to the left
-            for j in range(i-1,max(i-3, 0),-1):
-                z_, y_ = _surface_intersection_point(lens_sequence.R[j], lens_sequence.R[i], np.sum(lens_sequence.t[j:i]))
-                if z_ is not None:
-                    z_tmp.append(z_); absy_tmp.append(y_)
-            # all z-coordinates of intersection points should be negative -> take closest intersection point
-            if len(z_tmp) > 0:
-                z_int[i] = lens_sequence.zdist[j] + np.max(z_tmp)
-                absy_int[i] = absy_tmp[np.argmax(z_tmp)]
+            print(f"surface {i} curved to the left")
+            z_, y_ = _surface_intersection_point(lens_sequence.R[i-1], lens_sequence.R[i], lens_sequence.t[i-1])
+            if z_ is not None:
+                z_int[i] = lens_sequence.zdist[i-1] + z_
+                absy_int[i] = y_
         elif (lens_sequence.R[i] > 0): # surface curved to the right
-            # check intersection points with up to three surfaces to the right
-            for j in range(i+1,min(i+4, lens_sequence.num_surfs),+1):
-                z_, y_ = _surface_intersection_point(lens_sequence.R[i], lens_sequence.R[j], np.sum(lens_sequence.t[i:j]))
-                if z_ is not None:
-                    z_tmp.append(z_); absy_tmp.append(y_)
-            # all z-coordinates of intersection points should be positive
-            if len(z_tmp) > 0:
-                z_int[i] = lens_sequence.zdist[i] + np.min(z_tmp)
-                absy_int[i] = absy_tmp[np.argmin(z_tmp)]
+            print(f"surface {i} curved to the right")
+            z_, y_ = _surface_intersection_point(lens_sequence.R[i], lens_sequence.R[i+1], lens_sequence.t[i])        
+            if z_ is not None:
+                z_int[i] = lens_sequence.zdist[i] + z_
+                absy_int[i] = y_
         else:
             raise ValueError("Zero radius of curvature is not allowed")
 

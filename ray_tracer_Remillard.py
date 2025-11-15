@@ -32,6 +32,10 @@ EPD = float(sys.argv[3]) # entrance pupil diameter
 
 lens_sequence = read_lens(lens_file, SAG = True)
 
+print("z_nnint=", lens_sequence.z_nnint)
+print("y_nnint=", lens_sequence.y_nnint)
+# exit(1)
+
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
 
@@ -134,11 +138,8 @@ if z_intersection < 0:
     print(f"exit pupil semidiameter XP_radius={XP_radius}")
 else:
     print(f"exit pupil is a real image of the aperture stop")
-    print("u_pupil 1=", u_pupil)
     # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
     y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius], [0.0, np.arctan(-stop_radius/dist_right_of_AS)], lens_sequence, surf_start=AS_surf, forward=True)
-    print("y_tmp=", y_tmp)
-    print("u_tmp=", u_tmp)
 
     # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(stop_radius, np.arctan(-stop_radius/dist_right_of_AS), lens_sequence, surf_start=AS_surf-1, forward=True)
     # print("y_tmp=", y_tmp)
@@ -197,7 +198,7 @@ if True:
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
-plot_surfaces(t, R, 5*heights, n, fig)
+plot_surfaces(t, R, heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 # plt.show()
 
