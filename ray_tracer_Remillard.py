@@ -16,163 +16,25 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from time import time
 
-mpl.rcParams["lines.linewidth"] = 1
-    
-def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
-
-    params = {"surfcolor" : "red"}
-
-    if fig is None:
-        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-        ax = fig.subplots(1,1)
-        # plot optical axis
-        ax.axhline(y=0, color="k", linestyle="--")
-        # draw paraxial lens surfaces
-        l=-dists[0] # object distance is negative, lens system starts at z=0
-        ax.axvline(x=l, color=params["surfcolor"], linewidth=0.5)
-        ax.text(l-0.4, 0.0, "OBJECT", rotation=90, va="center")
-        for i in range(0, len(dists)):        
-            l += dists[i]
-            ax.axvline(x=l, color=params["surfcolor"])
-        ax.text(l-0.2, 0.0, "IMAGE", rotation=90, va="center")
-    else:
-        ax = fig.axes[0]
-    l=-dists[0]
-    zz = [l]           
-    yy = [ys[0]]     
-    for i in range(0, len(dists)):        
-        l += dists[i]
-        zz.append(l)
-        yy.append(ys[i+1])
-
-    zz = np.array(zz)
-    yy = np.array(yy)
-    if z_sag is None:
-        z_sag = np.zeros_like(zz)
-    ax.plot(zz+z_sag, yy, "-o", color=color, linewidth=linewidth)
-
-    if dists[0] > 600:
-        ax.set_xlim(-10, np.sum(dists[1:]))
-    
-    return fig
-
-
-def plot_surfaces(dists, Rs, heights, ns, fig=None):
-    """Plot spherical lens surfaces up to their clear apertures, which is given by heights[:]."""
-
-    # idenfity singlets, doublets and triplets so that the clear apertures of their
-    # surfaces can be combined into a lens
-    n_air = 1.00
-    nmat = np.invert((np.isclose(ns, n_air, atol=1e-2)))  # Which segements are materials other than air ?
-    ymax = heights.copy()   
-    y_ = 0.0; multiplet_elements = 0
-    for i in range(1,len(heights)):        
-        if nmat[i]:
-            if i <= len(heights)-2:
-                y_ = max(y_, heights[i], heights[i+1])
-            else:
-                y_ = max(y_, heights[i])
-            multiplet_elements += 1
-        else:
-            ymax[i-multiplet_elements:i+1] = y_
-            y_ = 0.0; multiplet_elements = 0
-
-    if fig is None:
-        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-        ax = fig.subplots(1,1)
-        # plot optical axis
-        ax.axhline(y=0, color="k", linestyle="--")
-
-    fig.axes[0].axis([-dists[0], np.sum(dists[1:]), -max(ymax)-2.0, max(ymax)+2.0])
-    vertex = 0
-    lens_edges = []
-    for i in range(1, len(dists)):
-        if not np.isinf(Rs[i]):
-            zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(ymax[i]/Rs[i])**2))
-            zz = np.linspace(0, zmax, 2000)
-            for pm in [+1,-1]:
-                yy = pm*np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
-                fig.axes[0].plot(vertex+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)
-                if pm == +1:
-                    lens_edges.append([vertex+np.sign(Rs[i])*zz[-1], yy[-1]])
-            if not nmat[i]:
-                # print("lens_edges=", lens_edges)
-                for pm in [+1,-1]:
-                    fig.axes[0].plot([e[0] for e in lens_edges],
-                                     [pm*e[1] for e in lens_edges], 
-                                        color="k", linewidth=2)
-                lens_edges = []
-        vertex += dists[i]    
-    
-    return fig
-
-
-def generate_ray_fan_plot(y_ray_fan: np.array, pupil_surf: int, ymax_pupil: float, image_surf: int):
-    """
-    y_ray_fan[surf, ray, field]
-    """
-    num_fields = len(y_ray_fan[1,1,:])
-    fig, axs = plt.subplots(nrows=1, ncols=num_fields)
-    for f in range(num_fields):
-        y_pupil_norm = y_ray_fan[pupil_surf, :, f]/ymax_pupil # normalized entrance pupil coordinate
-        y_imag = y_ray_fan[image_surf, :, f] # y-coordinate in the image plane
-        axs[f].plot(y_pupil_norm, y_imag, '-o')
-    plt.show()
+from lens import read_lens
+from trace_ray import trace_tangential_ray
+from pupils_and_stops import find_chief_rays
+from visualize import plot_ray, plot_surfaces
 
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
-# Load txt file, determine the surface powers and locate the surface which 
-# is the aperture stop. Make sure there is only one aperture stop. 
-
-# Take surface sag into account.
-SAG = True
-
 lens_file = sys.argv[1]
-max_obj_height = float(sys.argv[2])
-EPD = float(sys.argv[3])
+max_obj_height = float(sys.argv[2]) 
+EPD = float(sys.argv[3]) # entrance pupil diameter
 
-lens_layout = np.loadtxt(lens_file, comments="#", skiprows=1)
-num_surfs = lens_layout.shape[0]
+lens_sequence = read_lens(lens_file, SAG = True)
 
-stop_flag = np.zeros(num_surfs)
-R = np.zeros(num_surfs)
-t = np.zeros(num_surfs)
-n = np.zeros(num_surfs)
-V_d = np.zeros(num_surfs)
-phi = np.zeros(num_surfs)
-
-t[0] = lens_layout[0,3]
-AS_surf = 0
-for s in range(0, num_surfs):
-    stop_flag[s] = lens_layout[s,1]
-    R[s] = lens_layout[s, 2] 
-    t[s] = lens_layout[s, 3]
-    n[s] = lens_layout[s, 4]
-    V_d[s] = lens_layout[s, 5]
-    if s  > 0:
-        phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
-
-# special case: first surface is the aperture stop
-if stop_flag[1] == 1:
-    AS_surf = 1
-    pass
-
-# Find the aperture stop and verify that there is only one aperture stop.
-found_AS = False
-for s in range(1, num_surfs):    
-    if stop_flag[s] == 1:
-        if not found_AS:
-            AS_surf = s
-            found_AS = True
-        else:
-            raise ValueError("There can be only one aperture stop.")
-
-if AS_surf == 0:
-    raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
-
-print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from the front vertex.")
+print("z_nnint=", lens_sequence.z_nnint)
+print("y_nnint=", lens_sequence.y_nnint)
+# exit(1)
 
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
@@ -185,145 +47,115 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
 
-y_cr = np.zeros((AS_surf+1, num_fields))
-u_cr = np.zeros((AS_surf+1, num_fields))
 
-z_sag_cr = np.zeros((AS_surf+1, num_fields))
+# REMOVE
+AS_surf = lens_sequence.AS_surf
+SAG = lens_sequence.SAG
+n = lens_sequence.n
+phi = lens_sequence.phi
+t = lens_sequence.t
+R = lens_sequence.R
+num_surfs = lens_sequence.num_surfs
+zdist = lens_sequence.zdist
+stop_flag = lens_sequence.stop_flag
+Vd = lens_sequence.Vd
+# REMOVE 
 
-for f in range(num_fields):
-    print("field=", f)
-    y_cr[AS_surf,f] = 0.0
+y_cr, u_cr, z_sag_cr = find_chief_rays(lens_sequence, obj_height)
 
-    u_max = 0.4  # radians 
-    u_min = -0.4 #    
-    CHIEF_RAY_FOUND = False
-    print("determining chief ray launch angle")
-    while(not CHIEF_RAY_FOUND): # and y_cr[0,f] < obj_height[f]):
-        # update launch angle using bisection search
-        # It is assumed that increasing the chief ray launch angle will 
-        # monotonically increase its height in object space.
-        u_middle = 0.5*(u_max + u_min)
-        print("u_middle=", u_middle)
-        u_cr[AS_surf-1,f] = u_middle   
-        y_cr[AS_surf-1,f] = y_cr[AS_surf,f] + np.tan(u_cr[AS_surf-1,f])*t[AS_surf-1]
-        for i in range(AS_surf-1, 0, -1):      
-            if np.isinf(R[i]) or not SAG:
-                u_cr[i-1,f] = np.arctan((n[i]/n[i-1])*np.tan(u_cr[i,f]) - phi[i]*y_cr[i,f]/n[i-1])
-                y_cr[i-1,f] = y_cr[i,f] + np.tan(u_cr[i-1,f])*t[i-1]
-
-            # take surface sag into account
-            else:
-                y0 = y_cr[i,f]
-                u0 = u_cr[i,f]
-                # intersection with spherical surface
-                # When ray tracing from right to left:
-                #   (A) Indices of refraction (before, after) are exchanged.
-                #   (B) The radius of curvature is inverted and all quantities are computed as if for that problem.
-                #   (C) The surface sag thus computed needs to be inverted. 
-                R_ = (-1)*R[i] # modification (B)
-                sgnR = np.sign(R_)
-                tanu0 = np.tan(u0)
-                Delta = R_**2 - 2*y0*tanu0*R_ - y0**2
-                assert Delta > 0, "Delta < 0, %f"%(Delta)
-                zp = (R_ - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)                
-                yp = y0 + tanu0*zp 
-                theta = np.arctan(sgnR*yp/(R_-zp))
-                u_prime = sgnR*(np.arcsin(n[i]/n[i-1]*np.sin(theta + sgnR*u0)) - theta)  # modification (A)         
-
-                z_sag_cr[i,f] = (-1)*zp # modification (C)
-                y_cr[i,f] = yp # reset to value at intersection point
-                u_cr[i-1,f] = u_prime
-                y_cr[i-1,f] = yp + np.tan(u_cr[i-1,f])*(t[i-1] - zp)
-
-        # criterion whether chief ray has been found
-        CHIEF_RAY_FOUND = np.isclose(y_cr[0,f], obj_height[f], atol=1e-6)
-        # update bracketing interval for binary search
-        if y_cr[0,f] < obj_height[f]: 
-            u_min = u_middle 
-        else:
-            u_max = u_middle
-
+# entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
-# for f in range(num_fields-1):
-#     print("EPL=", obj_height[f]/np.tan(u_cr[1,f]) - t[0])
 
 marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
 ObjNA = n[0]*np.sin(marginal_ray_angle)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
 
-y_tmp = np.zeros((len(t)+1, num_fields))
-y_tmp[0:len(y_cr[:,0]),:] = y_cr[:,:]
-z_sag_tmp = np.zeros((len(t)+1, num_fields))
-z_sag_tmp[0:len(z_sag_cr[:,0]),:] = z_sag_cr[:,:]
-
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray(t, y_tmp[:,f], z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
+        fig = plot_ray(t, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
     else:
-        fig = plot_ray(t, y_tmp[:,f], fig, z_sag=z_sag_tmp[:,f], color="orange", linewidth=4)
+        fig = plot_ray(t, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
 
-# plt.show()
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-nr = 55 # number of rays in a ray bundle for a given field
-assert nr % 2 == 1
-y = np.zeros((num_surfs+1, nr, num_fields))
-u = np.zeros((num_surfs, nr, num_fields))
-
-z_sag = np.zeros((num_surfs+1, nr, num_fields))
-y_intersection = np.zeros((num_surfs, nr, num_fields))
+num_rays = 55 # number of rays in a ray bundle for a given field
+assert num_rays % 2 == 1
+y_obj = np.zeros((num_rays, num_fields))
+u_obj = np.zeros((num_rays, num_fields))
 
 # loop over fields
 for f in range(num_fields):
-    y[0,:,f] = obj_height[f]
-    dtheta = 2*marginal_ray_angle/nr
-    # k=0 and k=nr-1 are the marginal rays, k=nr//2 is the chief ray of the ray bundle.
-    u[0,:,f] = np.array([-u_cr[0,f] + (k-nr//2)*dtheta for k in range(nr)])
+    y_obj[:,f] = obj_height[f]
+    dtheta = 2*marginal_ray_angle/num_rays
+    # k=0 and k=num_rays-1 are the marginal rays, k=num_rays//2 is the chief ray of the ray bundle.
+    u_obj[:,f] = np.array([-u_cr[0,f] + (k-num_rays//2)*dtheta for k in range(num_rays)])
 
-    # loop over rays in a ray bundle
-    for r in range(nr):
-        y[1,r,f] = y[0,r,f] + np.tan(u[0,r,f])*t[0]
-        for i in range(1, num_surfs):
-            if np.isinf(R[i]) or not SAG:
-                u[i,r,f] = np.arctan((n[i-1]/n[i])*np.tan(u[i-1,r,f]) - phi[i]*y[i,r,f]/n[i])
-                y[i+1,r,f] = y[i,r,f] + np.tan(u[i,r,f])*t[i]   
 
-            # take surface sag into account
-            else:                
-                y0 = y[i,r,f]
-                u0 = u[i-1,r,f]
-                # intersection with spherical surface
-                sgnR = np.sign(R[i]) # The formula depends on the sign of the radius of curvature.
-                tanu0 = np.tan(u0)
-                Delta = R[i]**2 - 2*y0*tanu0*R[i] - y0**2
-                assert Delta > 0, "Delta < 0, %f"%(Delta)  
-                zp = (R[i] - y0*tanu0 - sgnR*np.sqrt(Delta))/(1 + tanu0**2)         
-                yp = y0 + tanu0*zp
-                theta = np.arctan(sgnR*yp/(R[i]-zp))
-                u_prime = sgnR*(np.arcsin(n[i-1]/n[i]*np.sin(theta + sgnR*u0)) - theta)
-
-                z_sag[i,r,f] = zp
-                # y_intersection[i,r,f] = yp
-                y[i,r,f] = yp # reset to value at intersection point
-                u[i,r,f] = u_prime 
-                y[i+1,r,f] = yp + np.tan(u_prime)*(t[i] - zp)
-
+y, u, z_sag, y_vertexplane = trace_tangential_ray(y_obj[:,:], u_obj[:,:], lens_sequence, surf_start=0)
 
 # plt.show()
 # generate_ray_fan_plot(y, AS_surf, 1.0, num_surfs)
 # exit(1)
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
-stop_radius = np.abs(y[AS_surf,nr-1,0])
+stop_radius = np.abs(y[AS_surf,num_rays-1,0])
+
+# ===============================================================
+# Locate the position of the *exit pupil* and its diameter.
+# ===============================================================
+# Trace two rays from the edge of the aperture stop towards the image side. 
+# Their first intersection point as viewed from the image side gives the edge 
+# of the exit pupil since it is the image of the aperture stop. The exit pupil
+# can be a virtual image.
+# (y_pupil, u_pupil) is the ray that goes through the edge of the aperture stop and through 
+# the edge of the exit pupil.
+y_pupil = np.zeros((num_surfs+1,2))
+u_pupil = np.zeros((num_surfs+1,2))
+
+# Ray 1 is just a copy of the on-axis marginal ray.
+y_pupil[AS_surf:,0] = y[AS_surf:,num_rays-1,0]
+u_pupil[AS_surf:,0] = u[AS_surf:,num_rays-1,0]
+# Ray 2 goes through the center of the next lens element. In the paraxial approximation, 
+# any other ray would be just as good. 
+y_pupil[AS_surf,1] = stop_radius
+if np.isclose(t[AS_surf], 0):
+    dist_right_of_AS = t[AS_surf+1]
+else:
+    dist_right_of_AS = t[AS_surf]
+u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_right_of_AS)
+# First check whether the exit pupil is virtual, i.e. ray 1 and ray 2 
+# intersect to the left of the first lens element behind the aperture stop.
+z_intersection = - stop_radius/(np.tan(u_pupil[AS_surf+1,0]) - np.tan(u_pupil[AS_surf,1]))
+if z_intersection < 0:
+    print(f"exit pupil is virtual, z={z_intersection}")
+    print(f"location of the aperture stop {zdist[AS_surf]}")
+    XPL = z_intersection + zdist[AS_surf]
+    XP_radius = np.tan(u_pupil[AS_surf,1]) * z_intersection
+    print(f"exit pupil location XPL={XPL}")
+    print(f"exit pupil semidiameter XP_radius={XP_radius}")
+else:
+    print(f"exit pupil is a real image of the aperture stop")
+    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
+    y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius], [0.0, np.arctan(-stop_radius/dist_right_of_AS)], lens_sequence, surf_start=AS_surf, forward=True)
+
+    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(stop_radius, np.arctan(-stop_radius/dist_right_of_AS), lens_sequence, surf_start=AS_surf-1, forward=True)
+    # print("y_tmp=", y_tmp)
+    # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
+    # for s in range(AS_surf+1, num_surfs+1, 1):
+    #     pass
+    fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="r")
+    fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="r")
+        
+
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
 heights[0] = 0
 for s in range(1, num_surfs):
     for f in range(num_fields):
-        for r in [0,nr-1]: # consider only outermost rays
+        for r in [0,num_rays-1]: # consider only outermost rays
             hs = np.abs(y[s,r,f])
             if (hs > heights[s]): 
                 heights[s] = hs
@@ -346,46 +178,80 @@ BFL = - y_inf[num_surfs-2] / np.tan(u_inf[num_surfs-1])
 EFL = BFL - (y_inf[0] - y_inf[num_surfs-2])/np.tan(u_inf[num_surfs-1])
 
 # Calculate the BID from the intersection of the marginal rays of the on-axis ray bundle.
-BID = (y[num_surfs-2,nr-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,nr-1,0]))
+BID = (y[num_surfs-2,num_rays-1,0] - y[num_surfs-2,0,0])/(np.tan(u[num_surfs-1,0,0]) - np.tan(u[num_surfs-1,num_rays-1,0]))
 TTL = np.sum(t[1:num_surfs])
 
-# SECTION 4: Plot
-colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
-for f in range(num_fields):
-    for r in range(nr):
-        fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
+# Calculate the image space numerical aperture from the angle between the marginal ray and the optical axis in image space.
+ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
+# Calculate magnification 
+magnification = y[num_surfs, num_rays//2, 0] / obj_height[0] # As image height we take the height of the chief ray.
+
+if True:
+    # SECTION 4: Plot
+    colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
+    for f in range(num_fields):
+        for r in range(num_rays):
+            fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
+            # fig = plot_ray(t, y[:,r,f], fig, z_sag[:,r,f], color=colors[f])
+            fig = plot_ray(t, y_cr[:,0], fig, z_sag_cr[:,0], color="k")
+            fig = plot_ray(t, y_cr[:,1], fig, z_sag_cr[:,1], color="k")
 
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
 plot_surfaces(t, R, heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
+# plt.show()
+
+ax = fig.axes[0]
+ax.plot(lens_sequence.z_nnint[1:-1], lens_sequence.y_nnint[1:-1], '-o')
+print("z_nnint=", lens_sequence.z_nnint)
+print("y_nnint=", lens_sequence.y_nnint)
 plt.show()
+exit(1)
 
 # SECTION 5: Calculate aberrations
 # Seidel coefficient for third-order monochromatic ray aberrations
 # Copy from Remillard's code
 CRI = np.zeros(num_surfs)
 MRI = np.zeros(num_surfs)
+# chief ray for the ray bundle *at maximum object* height 
+y_chief = y[:,num_rays//2,0]
+u_chief = u[:,num_rays//2,0]
+y_chief_test, u_chief_test, zsag_chief_test, _ = trace_tangential_ray(y_cr[0,0], -u_cr[0,0], lens_sequence)
+fig = plot_ray(t, y_cr[:,0], fig, np.zeros_like(y_chief), color="b")
+fig = plot_ray(t, y_chief_test[:], fig, z_sag=zsag_chief_test, color="g", dashtype="--")
+# marginal ray for the *on-axis* ray bundle
+y_marg = y[:,0,num_fields-1]
+u_marg = u[:,0,num_fields-1]
+
+y_marg_test, u_marg_test, zsag_mag_test, _ = trace_tangential_ray(y_cr[0,0], -u_cr[0,0]-marginal_ray_angle, lens_sequence)
+fig = plot_ray(t, y_marg_test[:], fig, z_sag=zsag_mag_test, color="y", dashtype="--")
+
+fig = plot_ray(t, y_marg[:], fig, np.zeros_like(y_marg), color="g")
+plt.show()
 L = np.zeros(num_surfs)
-S1 = np.zeros(num_surfs)
-S2 = np.zeros(num_surfs)
-S3 = np.zeros(num_surfs)
-S4 = np.zeros(num_surfs)
-S5 = np.zeros(num_surfs)
+S1 = np.zeros(num_surfs) # spherical
+S2 = np.zeros(num_surfs) # coma
+S3 = np.zeros(num_surfs) # astigmatism
+S4 = np.zeros(num_surfs) # field curvature
+S5 = np.zeros(num_surfs) # distortion
 PetzSum = 0.0
 for i in range(1,num_surfs):
-    MRI[i] = n[i-1]*(y[i,0,num_fields-1]/R[i] + np.tan(u[i-1,0,num_fields-1])) # marginal ray for the *on-axis* ray bundle
-    CRI[i] = n[i-1]*(y[i,nr//2,0]/R[i] + np.tan(u[i-1,nr//2,0])) # chief ray for the ray bundle *at maximum object* height 
-    L[i] = n[i-1]*(y[i,0,num_fields-1]*np.tan(u[i-1,nr//2,0]) - y[i,nr//2,0]*np.tan(u[i-1,0,num_fields-1])) # Lagrange invariant for the above two rays
-    S1[i] = -MRI[i]*MRI[i]*y[i,0,num_fields-1]*(np.tan(u[i,0,num_fields-1])/n[i] - np.tan(u[i-1,0,num_fields-1])/n[i-1])
+    MRI[i] = n[i]*(y_marg[i]/R[i] + np.tan(u_marg[i])) # marginal ray "invariant" for the *on-axis* ray bundle (an invariant at a refracting surface but not under propagation)
+    CRI[i] = n[i]*(y_chief[i]/R[i] + np.tan(u_chief[i])) # chief ray for the ray bundle *at maximum object* height 
+    L[i] = n[i-1]*(y_marg[i]*np.tan(u_chief[i-1]) - y_chief[i]*np.tan(u_marg[i-1])) # Lagrange invariant for the above two rays
+    S1[i] = -MRI[i]*MRI[i]*y_marg[i]*(np.tan(u_marg[i])/n[i] - np.tan(u_marg[i-1])/n[i-1])
     S2[i] = S1[i]*CRI[i]/MRI[i]
     S3[i] = S2[i]*CRI[i]/MRI[i]
     S4[i] = -L[i]*L[i]*((1/n[i]) - (1/n[i-1]))/R[i]
-    S5[i] = (S3[i] + S4[i])*CRI[i]/MRI[i]
+    S5[i] = -(S3[i] + S4[i])*CRI[i]/MRI[i]
     PetzSum += (1/R[i])*((1/n[i]) - (1/n[i-1]))
 
 S1sum = np.sum(S1); S2sum = np.sum(S2); S3sum = np.sum(S3); S4sum = np.sum(S4); S5sum = np.sum(S5)
 PetzvalRadius = 1.0 / PetzSum
+
+print("MRI=", MRI)
+print("S1=", S1)
 
 # SECTION 6: Output 
 with open("lens_summary.txt", "w") as fh:
@@ -393,7 +259,7 @@ with open("lens_summary.txt", "w") as fh:
     header+= str("# "+str("="*(12*2+22*3+26*2)))
     print(header, file=fh)
     for s in range(num_surfs):
-        print("%12d %12d %21.4e %21.6f %21.6f %25.6f %25.5f"%(s, stop_flag[s], R[s], t[s], n[s], V_d[s], heights[s]), file=fh)
+        print("%12d %12d %21.4e %21.6f %21.6f %25.6f %25.5f"%(s, stop_flag[s], R[s], t[s], n[s], Vd[s], heights[s]), file=fh)
     print(" ", file=fh)
     print(f"Chief ray launch angles:", file=fh)
     for f in range(num_fields):
@@ -402,6 +268,9 @@ with open("lens_summary.txt", "w") as fh:
     print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
     print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
     print(f"Object Space NA = {ObjNA}", file=fh)
+    print(f"Image Space NA = {ImgNA}", file=fh)
+    print(f"magnification = {magnification}", file=fh)
+    print(f"Violation of Abbe sine condition: eps = {ObjNA - ImgNA / np.abs(magnification)}",file=fh)
     print(f"Field of view FOV = {FOV}", file=fh)
     print(f"Stop Radius = {stop_radius}", file=fh)
     print(f"Back Focal Length BFL = {BFL} mm", file=fh)
