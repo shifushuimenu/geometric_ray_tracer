@@ -7,7 +7,7 @@ import matplotlib as mpl
 from nonmeridional_rays import (raytrace_nonmeridional_rays, 
                                 calculate_OPD, 
                                 calculate_wavefront_aberration)
-from plot import plot_ray, plot_surfaces, intersection_with_surface
+from plot import plot_ray, plot_surfaces
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
@@ -184,11 +184,3 @@ for f in range(num_fields):
     axs[f].plot(P_intersect[0,-1,:,f], P_intersect[1,-1,:,f]-y_CR, 'o', color=colors[f])
 fig.tight_layout()
 plt.show()
-
-# fig = plt.figure("fig3", figsize=(6,6))
-# axs = fig.subplots(1,num_fields,sharex="all",)
-# for f in range(num_fields):
-#     P = intersection_with_surface((P_intersect[:,1,:,f], rayvecs[:,1,:,f]), zS[1])
-#     axs[f].plot(P[0,:], P[1,:], '+', color=colors[f])
-# fig.tight_layout()
-# plt.show()

@@ -1,28 +1,28 @@
 import numpy as np
-import dataclasses
+from dataclasses import dataclass, field
 from typing import Iterable, Tuple
 
 __about__ = ["LensSequence", "read_lens"]
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class LensSequence(object):
     num_surfs: int = 3  # number of surfaces including object surface 
     AS_surf: int = 1    # index of surface which is the aperture stop
-    stop_flag: np.ndarray = np.array([0,1,0])
+    stop_flag: np.ndarray = field(default_factory = np.ndarray)
     SAG: bool = True    # Should surface sag be taken into account ?
     lens_unit: str = "mm" # lens unit millimeter
-    R: np.ndarray = np.array([np.inf, np.inf, np.inf])  # radii of curvate 
-    t: np.ndarray = np.array([10, 0, 10])               # distances between surfaces
-    zdist: np.ndarray = np.array([-10, 0, 0, 10])
-    n: np.ndarray = np.array([1.0, 1.0, 1.0])           # index of refraction *after* each surface
-    Vd: np.ndarray = np.array([np.inf, np.inf, np.inf]) # Abbe number of medium *after* each surface 
-    phi: np.ndarray = np.array([0, 0, 0])               # surface power
-    forward: bool = True                                # traverse lens system forward or backward
-    y_nnint: np.ndarray = dataclasses.field(init=False)         # y-coord where neighbouring surfaces intersect
-    z_nnint: np.ndarray = dataclasses.field(init=False)         # z-coord where neighbouring surfaces intersect
+    R: np.ndarray = field(default_factory = np.ndarray)  # radii of curvate 
+    t: np.ndarray = field(default_factory = np.ndarray)  # distances between surfaces
+    zdist: np.ndarray = field(default_factory = np.ndarray)
+    n: np.ndarray = field(default_factory = np.ndarray)     # index of refraction *after* each surface
+    Vd: np.ndarray = field(default_factory = np.ndarray)    # Abbe number of medium *after* each surface 
+    phi: np.ndarray = field(default_factory = np.ndarray)   # surface power
+    forward: bool = True                                 # traverse lens system forward or backward
+    y_nnint: np.ndarray = field(init=False)  # y-coord where neighbouring surfaces intersect
+    z_nnint: np.ndarray = field(init=False)  # z-coord where neighbouring surfaces intersect
 
     def __post_init__(self):
-        _z, _y = _calc_surface_intersections(self)
+        _z, _y = _calc_surface_intersections(self, maxval_CA=120.0)
         super().__setattr__("y_nnint", _y)
         super().__setattr__("z_nnint", _z)
 
@@ -36,12 +36,12 @@ def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequ
     SAG = True takes surface sag into account.
     """
     lens_layout = np.loadtxt(filename, comments="#", skiprows=1)
-    num_surfs = lens_layout.shape[0]
+    num_surfs = lens_layout.shape[0] # number of surface including object and image surface
 
     stop_flag = np.zeros(num_surfs)
     R = np.zeros(num_surfs)
     t = np.zeros(num_surfs)
-    zdist = np.zeros(num_surfs+1)
+    zdist = np.zeros(num_surfs)
     n = np.zeros(num_surfs)
     Vd = np.zeros(num_surfs)
     phi = np.zeros(num_surfs)
@@ -60,7 +60,9 @@ def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequ
     # zdist[0] < 0 is the object distance.    
     zdist[0] = -t[0]
     zdist[1] = 0
-    zdist[2:] = np.cumsum(t[1:])
+    zdist[2:] = np.cumsum(t[1:num_surfs-1])
+
+    # The distance behing the image surface is not needed.
 
     # Find the aperture stop and verify that there is only one aperture stop.
     AS_surf = 0 
@@ -162,7 +164,7 @@ def _surface_intersection_point(R_first: float, R_second: float, t: float) -> fl
         return None, None
     
 
-def _calc_surface_intersections(lens_sequence: LensSequence) -> Tuple[Iterable[float], Iterable[float]]:
+def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf) -> Tuple[Iterable[float], Iterable[float]]:
     """
     For each surface, calculate the intersection points with neighbour surfaces (in the plane in which the optical axis lies).
     This is used to calculate maximal clear apertures for every surface such that curved surfaces do not intersect.
@@ -179,8 +181,8 @@ def _calc_surface_intersections(lens_sequence: LensSequence) -> Tuple[Iterable[f
     For a flat surface s without intersection z_int[s] is the location of the vertex and y_int[s] = inf.
     """
     z_int = lens_sequence.zdist.copy()
-    absy_int = np.empty(lens_sequence.num_surfs+1)
-    absy_int.fill(np.inf)
+    absy_int = np.empty(lens_sequence.num_surfs)
+    absy_int.fill(maxval_CA)
 
     # IMPROVE: There is a problem with the last surface.
     for i in range(1, lens_sequence.num_surfs-1): # exclude object and image surface

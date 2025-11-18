@@ -20,8 +20,9 @@ from time import time
 
 from lens import read_lens
 from trace_ray import trace_tangential_ray
-from pupils_and_stops import find_chief_rays
+from pupils_and_stops import find_chief_rays, intersection_line_segments
 from visualize import plot_ray, plot_surfaces
+from aberrations import Seidel3rd_aberrations
 
 
 # SECTION 1:
@@ -45,6 +46,8 @@ print("y_nnint=", lens_sequence.y_nnint)
 # The chief ray is calculated for three object heights ("field positions" in optics jargon):
 # at full object height, at 70% object height and on axis.
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
+MAX_FIELD_INDEX=0
+ON_AXIS_FIELD_INDEX=-1
 num_fields = len(obj_height)
 
 
@@ -64,11 +67,11 @@ Vd = lens_sequence.Vd
 y_cr, u_cr, z_sag_cr = find_chief_rays(lens_sequence, obj_height)
 
 # entrance pupil location (measured from the vertex of the first surface)
-EPL = obj_height[0]/np.tan(u_cr[0,0]) - t[0]
+EPL = obj_height[0]/np.tan(u_cr[0,0]) - lens_sequence.t[0]
 
-marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+t[0]))
+marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+lens_sequence.t[0]))
 ObjNA = n[0]*np.sin(marginal_ray_angle)
-FOV = np.arctan((obj_height[0]-y_cr[1,0])/t[0])
+FOV = np.arctan((obj_height[0]-y_cr[1,0])/lens_sequence.t[0])
 
 # Plot the chief rays
 for f in range(num_fields):
@@ -76,6 +79,7 @@ for f in range(num_fields):
         fig = plot_ray(t, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
     else:
         fig = plot_ray(t, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
+    fig.axes[0].set_aspect("equal")
 
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
@@ -101,13 +105,13 @@ y, u, z_sag, y_vertexplane = trace_tangential_ray(y_obj[:,:], u_obj[:,:], lens_s
 # exit(1)
 
 # The height of the  marginal ray of the on-axis field at the aperture stop gives the stop radius.
-stop_radius = np.abs(y[AS_surf,num_rays-1,0])
+stop_radius = np.abs(y[AS_surf,num_rays-1,ON_AXIS_FIELD_INDEX])
 
 # ===============================================================
 # Locate the position of the *exit pupil* and its diameter.
 # ===============================================================
 # Trace two rays from the edge of the aperture stop towards the image side. 
-# Their first intersection point as viewed from the image side gives the edge 
+# Their intersection point as viewed from the image side gives the edge 
 # of the exit pupil since it is the image of the aperture stop. The exit pupil
 # can be a virtual image.
 # (y_pupil, u_pupil) is the ray that goes through the edge of the aperture stop and through 
@@ -116,8 +120,8 @@ y_pupil = np.zeros((num_surfs+1,2))
 u_pupil = np.zeros((num_surfs+1,2))
 
 # Ray 1 is just a copy of the on-axis marginal ray.
-y_pupil[AS_surf:,0] = y[AS_surf:,num_rays-1,0]
-u_pupil[AS_surf:,0] = u[AS_surf:,num_rays-1,0]
+y_pupil[0:AS_surf+1,0] = y[0:AS_surf+1,num_rays-1,-1] # The last field position is the on-axis field.
+u_pupil[0:AS_surf+1,0] = u[0:AS_surf+1,num_rays-1,-1]
 # Ray 2 goes through the center of the next lens element. In the paraxial approximation, 
 # any other ray would be just as good. 
 y_pupil[AS_surf,1] = stop_radius
@@ -126,29 +130,45 @@ if np.isclose(t[AS_surf], 0):
 else:
     dist_right_of_AS = t[AS_surf]
 u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_right_of_AS)
-# First check whether the exit pupil is virtual, i.e. ray 1 and ray 2 
-# intersect to the left of the first lens element behind the aperture stop.
-z_intersection = - stop_radius/(np.tan(u_pupil[AS_surf+1,0]) - np.tan(u_pupil[AS_surf,1]))
-if z_intersection < 0:
-    print(f"exit pupil is virtual, z={z_intersection}")
-    print(f"location of the aperture stop {zdist[AS_surf]}")
-    XPL = z_intersection + zdist[AS_surf]
-    XP_radius = np.tan(u_pupil[AS_surf,1]) * z_intersection
-    print(f"exit pupil location XPL={XPL}")
-    print(f"exit pupil semidiameter XP_radius={XP_radius}")
-else:
-    print(f"exit pupil is a real image of the aperture stop")
-    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
-    y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius], [0.0, np.arctan(-stop_radius/dist_right_of_AS)], lens_sequence, surf_start=AS_surf, forward=True)
 
-    # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(stop_radius, np.arctan(-stop_radius/dist_right_of_AS), lens_sequence, surf_start=AS_surf-1, forward=True)
-    # print("y_tmp=", y_tmp)
-    # Ray 2 needs to be traced paraxially (!) so that its value behind the last lens element is known.
-    # for s in range(AS_surf+1, num_surfs+1, 1):
-    #     pass
-    fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="r")
-    fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="r")
-        
+# y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
+# y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
+y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius, stop_radius], [0, np.arctan(-stop_radius/dist_right_of_AS), np.arctan(-stop_radius/dist_right_of_AS/2.0)], lens_sequence, surf_start=AS_surf, forward=True)
+
+y_tmp[0:AS_surf,0:2] = y_pupil[0:AS_surf,:]
+u_tmp[0:AS_surf,0:2] = u_pupil[0:AS_surf,:]
+fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="k")
+fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="k")
+fig = plot_ray(t, y_tmp[:,2], fig, z_sag_tmp[:,2], color="k")
+
+# Intersection point of the ray segements behind the last lens element
+y1 = y_tmp[-1,0] 
+u1 = u_tmp[-1,0]
+y2 = y_tmp[-1,1]
+u2 = u_tmp[-1,1]
+y3 = y_tmp[-1,2]
+u3 = u_tmp[-1,2]
+z_int, y_int = intersection_line_segments(y1, u1, y2, u2)
+ray1 = [y_int, y_tmp[-1,0]]
+ray2 = [y_int, y_tmp[-1,1]]
+zcoord = [z_int, zdist[-1]]
+fig.axes[0].plot(zcoord, ray1, "-o", color="magenta")
+fig.axes[0].plot(zcoord, ray2, "-o", color="magenta")
+print("y1=", y1, "y2=", y2)
+print("u1=", u1, "u2=", u2)
+print("z_int=", z_int, "y_int=", y_int)
+print("zdist[-1]=", zdist[-1])
+
+# Exit pupil location (measured from the image plane)
+XPL = z_int 
+# Exit pupil diameter
+XPD = 2*np.abs(y_int)
+
+z_int2, y_int2 = intersection_line_segments(y1, u1, y3, u3)
+ray3 = [y_int2, y_tmp[-1,2]]
+fig.axes[0].plot([z_int2, zdist[-1]], ray3, "-o", color="magenta")
+print("z_int2=", z_int2, "y_int2=", y_int2)
+# plt.show()        
 
 # The heights of the outermost rays at each surface determine its clear aperture radius.
 heights = np.zeros(num_surfs)
@@ -167,7 +187,7 @@ y_inf = np.zeros(num_surfs+1)
 u_inf = np.zeros(num_surfs)
 y_inf[0] = max_obj_height
 u_inf[0] = 0.0
-y_inf[1] = max_obj_height # trivial transfer
+y_inf[1] = y_inf[0] # trivial transfer
 for s in range(1, num_surfs):
     # Replacing u -> tan(u) in the paraxial ray tracing equations leads to results 
     # for EFL and BFL matching perfectly with Zemax Optics Studio.
@@ -196,18 +216,17 @@ if True:
             fig = plot_ray(t, y_cr[:,0], fig, z_sag_cr[:,0], color="k")
             fig = plot_ray(t, y_cr[:,1], fig, z_sag_cr[:,1], color="k")
 
+# plt.show()
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
 plot_surfaces(t, R, heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
-# plt.show()
-
-ax = fig.axes[0]
-ax.plot(lens_sequence.z_nnint[1:-1], lens_sequence.y_nnint[1:-1], '-o')
-print("z_nnint=", lens_sequence.z_nnint)
-print("y_nnint=", lens_sequence.y_nnint)
 plt.show()
-exit(1)
+
+# Plot the maximal clear apertures
+ax = fig.axes[0]
+ax.plot(lens_sequence.z_nnint[1:-1], lens_sequence.y_nnint[1:-1], '-o', color="orange", markersize=5)
+ax.plot(lens_sequence.z_nnint[1:-1], -lens_sequence.y_nnint[1:-1], '-o', color="orange", markersize=5)
 
 # SECTION 5: Calculate aberrations
 # Seidel coefficient for third-order monochromatic ray aberrations
@@ -228,7 +247,7 @@ y_marg_test, u_marg_test, zsag_mag_test, _ = trace_tangential_ray(y_cr[0,0], -u_
 fig = plot_ray(t, y_marg_test[:], fig, z_sag=zsag_mag_test, color="y", dashtype="--")
 
 fig = plot_ray(t, y_marg[:], fig, np.zeros_like(y_marg), color="g")
-plt.show()
+
 L = np.zeros(num_surfs)
 S1 = np.zeros(num_surfs) # spherical
 S2 = np.zeros(num_surfs) # coma
@@ -253,8 +272,14 @@ PetzvalRadius = 1.0 / PetzSum
 print("MRI=", MRI)
 print("S1=", S1)
 
+# # Test
+# y_chief_test, u_chief_test, _, _ = trace_tangential_ray(1.414,  -0.0554, lens_sequence)
+# y_marg_test, u_marg_test, _, _ = trace_tangential_ray(0.0, 0.0784, lens_sequence)
+# S1, S2, S3, S4, S5, S1sum, S2sum, S3sum, S4sum, S5sum, PetzvalRadius = Seidel3rd_aberrations(y_chief_test, u_chief_test, y_marg_test, u_marg_test, lens_sequence)
+# #
+
 # SECTION 6: Output 
-with open("lens_summary.txt", "w") as fh:
+with open("lens_report.txt", "w") as fh:
     header = str("#"+str("%12s"*2)+str("%22s"*3)+str("%26s"*2)+"\n")%("Surface","Stop Flag", "Radius  [mm]", "Thickness [mm]", "n_d", "Abbe value V_d", "Clear Semidiameter [mm]")
     header+= str("# "+str("="*(12*2+22*3+26*2)))
     print(header, file=fh)
@@ -263,20 +288,22 @@ with open("lens_summary.txt", "w") as fh:
     print(" ", file=fh)
     print(f"Chief ray launch angles:", file=fh)
     for f in range(num_fields):
-        print(f"\t\t FIELD {f} u0 = {-u_cr[0,f]*360/(2*np.pi)} degrees  -> y0 = {y_cr[0,f]} mm", file=fh)
-    print(f"Entrance pupil position ENPP = {EPL} mm", file=fh)
-    print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
-    print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)
-    print(f"Object Space NA = {ObjNA}", file=fh)
-    print(f"Image Space NA = {ImgNA}", file=fh)
-    print(f"magnification = {magnification}", file=fh)
-    print(f"Violation of Abbe sine condition: eps = {ObjNA - ImgNA / np.abs(magnification)}",file=fh)
-    print(f"Field of view FOV = {FOV}", file=fh)
-    print(f"Stop Radius = {stop_radius}", file=fh)
+        print(f"\t\t FIELD {f} u0 = {-u_cr[0,f]} radians  -> y0 = {y_cr[0,f]} mm", file=fh)
+    print(f"Effective Focal Length EFL = {EFL} mm", file=fh)        
     print(f"Back Focal Length BFL = {BFL} mm", file=fh)
-    print(f"Effective Focal Length EFL = {EFL} mm", file=fh)
+    print(f"Total Track Length TTL = {TTL} mm", file=fh)      
+    print(f"Image Space NA = {ImgNA}", file=fh)
+    print(f"Object Space NA = {ObjNA}", file=fh)
+    print(f"Stop Radius = {stop_radius}", file=fh)
+    print(f"magnification = {magnification}", file=fh)    
+    print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
+    print(f"Entrance pupil position ENPP = {EPL} mm", file=fh)    
+    print(f"Exit pupil diameter XPD = {XPD} mm", file=fh)
+    print(f"Exit pupil position XPP = {XPL} mm (measured from image plane)", file=fh)
     print(f"Back Image Distance BID = {BID} mm", file=fh)
-    print(f"Total Track Length TTL = {TTL} mm", file=fh)
+    print(f"Field of view FOV = {FOV}", file=fh)    
+    print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)    
+    print(f"Violation of Abbe sine condition: eps = {ObjNA - ImgNA / np.abs(magnification)}",file=fh)
     print(" ", file=fh)
     print("Aberrations:", file=fh)
     print(" ", file=fh)

@@ -6,6 +6,9 @@ __all__ = ["timer_func", "RayIntersectionNotFoundError"]
 class RayIntersectionNotFoundError(AssertionError):
     pass
 
+class ChiefRayNotFoundError(AssertionError):
+    pass
+
 def timer_func(func : Callable) -> Callable:
     "Used as a decorator, this function shows the execution time of the function object passed."
     def wrap_func(*args, **kwargs):

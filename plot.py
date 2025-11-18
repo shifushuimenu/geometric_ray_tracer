@@ -1,17 +1,23 @@
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from utils import timer_func
 
-def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
+from typing import Iterable
 
-    params = {"surfcolor" : "red"}
+__all__ = ["plot_ray", "plot_surfaces"]
+
+def plot_ray(dists: Iterable, ys: Iterable, z_sag: Iterable = None, 
+             fig: Figure = None, color="red", linewidth=1) -> Figure:
+
+    params = {"surfcolor" : "red", "ASstopcolor" : "green"}
 
     if fig is None:
         fig = plt.figure("fig1", figsize=(6,6), layout="tight")
         ax = fig.subplots(1,1)
         # plot optical axis
         ax.axhline(y=0, color="k", linestyle="--")
-        # draw paraxial lens surfaces
+        # draw paraxial lens surfaces, i.e. the plane through the vertex orthogonal to the optical axis
         l=-dists[0] # object distance is negative, lens system starts at z=0
         ax.axvline(x=l, color=params["surfcolor"], linewidth=0.5)
         ax.text(l-0.4, 0.0, "OBJECT", rotation=90, va="center")
@@ -38,27 +44,36 @@ def plot_ray(dists, ys, fig=None, z_sag=None, color="red", linewidth=1):
     if dists[0] > 600:
         ax.set_xlim(-10, np.sum(dists[1:]))
     
+    fig.axes[0].set_aspect("equal")
     return fig
 
 
-def plot_surfaces(dists, Rs, heights, ns, fig=None):
-    """Plot spherical lens surfaces up to their clear apertures, which is given by heights[:]."""
+def plot_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: Iterable, 
+                  fig: Figure = None) -> Figure:
+    """
+    Plot spherical lens surfaces up to their clear apertures.
+
+    Mark refractive materials with colors, differentiating between lens elements with 
+    positive and negative refractive index. The hue of the color indicates the absolute 
+    magnitude of the refractive index. 
+    """
 
     # idenfity singlets, doublets and triplets so that the clear apertures of their
     # surfaces can be combined into a lens
-    n_air = 1.00
-    nmat = np.invert((np.isclose(ns, n_air, atol=1e-2)))  # Which segements are materials other than air ?
-    ymax = heights.copy()   
+    n_air = 1.0 # 1.000302
+    nmat = np.invert((np.isclose(ns, n_air, atol=1e-6)))  # Which segements are materials other than air ?
+    ymax = clear_aperture.copy()   
     y_ = 0.0; multiplet_elements = 0
-    for i in range(1,len(heights)):        
+    for i in range(1,len(Rs)):        
         if nmat[i]:
-            if i <= len(heights)-2:
-                y_ = max(y_, heights[i], heights[i+1])
+            if i <= len(Rs)-2:
+                y_ = max(y_, clear_aperture[i], clear_aperture[i+1])
             else:
-                y_ = max(y_, heights[i])
+                y_ = max(y_, clear_aperture[i])
             multiplet_elements += 1
         else:
             ymax[i-multiplet_elements:i+1] = y_
+            # reset
             y_ = 0.0; multiplet_elements = 0
 
     if fig is None:
@@ -75,6 +90,7 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
             zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(ymax[i]/Rs[i])**2))
             zz = np.linspace(0, zmax, 2000)
             for pm in [+1,-1]:
+                # plot the curved lens surface above and below the optical axis
                 yy = pm*np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
                 fig.axes[0].plot(vertex+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)
                 if pm == +1:
@@ -88,40 +104,5 @@ def plot_surfaces(dists, Rs, heights, ns, fig=None):
                 lens_edges = []
         vertex += dists[i]
     
+    fig.axes[0].set_aspect("equal")
     return fig
-
-
-@timer_func
-def intersection_with_surface(ray_bundle, zS):
-    '''
-    ray_bundle : a tuple (P_intersect[0:3,0:num_rays], ravecs[0:3,0:num_rays])
-    zS : float, the position of the surface orthogonal to the optical axis
-    '''
-    P_intersect, rayvecs = ray_bundle
-    assert P_intersect.shape == rayvecs.shape
-    zz = ((zS - P_intersect[2,:])/rayvecs[2,:])
-    P = P_intersect.copy()
-    P[2,:] = zS
-    P[0:2,:] = P[0:2,:] + zz*rayvecs[0:2,:]
-
-    return P
-
-
-@timer_func
-def intersection_with_surface_v2(ray_bundle, zS):
-    '''
-    ray_bundle : a tuple (P_intersect[0:3,0:num_rays], ravecs[0:3,0:num_rays])
-    zS : float, the position of the surface orthogonal to the optical axis
-    '''
-    P_intersect, rayvecs = ray_bundle
-    num_rays = rayvecs.shape[1]
-    intersection_points = np.zeros((3, num_rays))
-    for r in range(num_rays):
-        zz = ((zS - P_intersect[2,r])/rayvecs[2,r])
-        x_is = P_intersect[0,r] + zz*rayvecs[0,r]
-        y_is = P_intersect[1,r] + zz*rayvecs[1,r]
-        z_is = zS
-        intersection_points[0:3,r] = np.array([x_is, y_is, z_is])
-
-    return intersection_points
-
