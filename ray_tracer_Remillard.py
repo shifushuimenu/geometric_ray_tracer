@@ -21,7 +21,7 @@ from time import time
 from lens import read_lens
 from trace_ray import trace_tangential_ray
 from pupils_and_stops import find_chief_rays, intersection_line_segments
-from visualize import plot_ray, plot_surfaces
+from plot import plot_ray, plot_spherical_surfaces
 from aberrations import Seidel3rd_aberrations
 
 
@@ -79,7 +79,7 @@ for f in range(num_fields):
         fig = plot_ray(t, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
     else:
         fig = plot_ray(t, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
-    fig.axes[0].set_aspect("equal")
+    # fig.axes[0].set_aspect("auto")
 
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
@@ -141,14 +141,14 @@ fig = plot_ray(t, y_tmp[:,0], fig, z_sag_tmp[:,0], color="k")
 fig = plot_ray(t, y_tmp[:,1], fig, z_sag_tmp[:,1], color="k")
 fig = plot_ray(t, y_tmp[:,2], fig, z_sag_tmp[:,2], color="k")
 
-# Intersection point of the ray segements behind the last lens element
+# Intersection point of the ray segments behind the last lens element
 y1 = y_tmp[-1,0] 
 u1 = u_tmp[-1,0]
 y2 = y_tmp[-1,1]
 u2 = u_tmp[-1,1]
 y3 = y_tmp[-1,2]
 u3 = u_tmp[-1,2]
-z_int, y_int = intersection_line_segments(y1, u1, y2, u2)
+z_int, y_int = intersection_line_segments(y1, u1, y2, u2, zdist[-1])
 ray1 = [y_int, y_tmp[-1,0]]
 ray2 = [y_int, y_tmp[-1,1]]
 zcoord = [z_int, zdist[-1]]
@@ -164,7 +164,7 @@ XPL = z_int
 # Exit pupil diameter
 XPD = 2*np.abs(y_int)
 
-z_int2, y_int2 = intersection_line_segments(y1, u1, y3, u3)
+z_int2, y_int2 = intersection_line_segments(y1, u1, y3, u3, zdist[-1])
 ray3 = [y_int2, y_tmp[-1,2]]
 fig.axes[0].plot([z_int2, zdist[-1]], ray3, "-o", color="magenta")
 print("z_int2=", z_int2, "y_int2=", y_int2)
@@ -206,7 +206,7 @@ ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
 # Calculate magnification 
 magnification = y[num_surfs, num_rays//2, 0] / obj_height[0] # As image height we take the height of the chief ray.
 
-if True:
+if False:
     # SECTION 4: Plot
     colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
     for f in range(num_fields):
@@ -219,7 +219,7 @@ if True:
 # plt.show()
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
-plot_surfaces(t, R, heights, n, fig)
+plot_spherical_surfaces(t, R, heights, n, fig)
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 plt.show()
 
@@ -299,7 +299,7 @@ with open("lens_report.txt", "w") as fh:
     print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
     print(f"Entrance pupil position ENPP = {EPL} mm", file=fh)    
     print(f"Exit pupil diameter XPD = {XPD} mm", file=fh)
-    print(f"Exit pupil position XPP = {XPL} mm (measured from image plane)", file=fh)
+    print(f"Exit pupil position XPP = {XPL} mm (measured from front vertex)", file=fh)
     print(f"Back Image Distance BID = {BID} mm", file=fh)
     print(f"Field of view FOV = {FOV}", file=fh)    
     print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)    

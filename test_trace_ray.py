@@ -1,6 +1,6 @@
 from trace_ray import *
 from lens import *
-from visualize import *
+from plot import *
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -22,6 +22,6 @@ print("u=", u)
 fig = None
 for b in range(y.shape[-1]):
     fig = plot_ray(LS.t, y[:,b], fig, color="r", linewidth=1)
-plot_surfaces(LS.t, LS.R, 5*np.max(obj_height)*np.ones_like(LS.R), LS.n, fig)
+plot_spherical_surfaces(LS.t, LS.R, 5*np.max(obj_height)*np.ones_like(LS.R), LS.n, fig)
 # plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 plt.show()

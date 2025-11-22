@@ -122,8 +122,7 @@ def _surface_intersection_point(R_first: float, R_second: float, t: float) -> fl
     y_int: intersection point in radial direction
            None if no intersection
     """
-    print(f"R_first={R_first}, R_second={R_second}, t={t}")    
-
+    
     # Find intersection points of neighbouring surfaces in a plane containing the optical axis.
 
     # two parallel planes
@@ -164,7 +163,7 @@ def _surface_intersection_point(R_first: float, R_second: float, t: float) -> fl
         return None, None
     
 
-def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf) -> Tuple[Iterable[float], Iterable[float]]:
+def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf, verbose=False) -> Tuple[Iterable[float], Iterable[float]]:
     """
     For each surface, calculate the intersection points with neighbour surfaces (in the plane in which the optical axis lies).
     This is used to calculate maximal clear apertures for every surface such that curved surfaces do not intersect.
@@ -187,13 +186,15 @@ def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf) -
     # IMPROVE: There is a problem with the last surface.
     for i in range(1, lens_sequence.num_surfs-1): # exclude object and image surface
         if (lens_sequence.R[i] < 0): # surface curved to the left
-            print(f"surface {i} curved to the left")
+            if verbose:
+               print(f"surface {i} curved to the left")
             z_, y_ = _surface_intersection_point(lens_sequence.R[i-1], lens_sequence.R[i], lens_sequence.t[i-1])
             if z_ is not None:
                 z_int[i] = lens_sequence.zdist[i-1] + z_
                 absy_int[i] = y_
         elif (lens_sequence.R[i] > 0): # surface curved to the right
-            print(f"surface {i} curved to the right")
+            if verbose:
+               print(f"surface {i} curved to the right")
             z_, y_ = _surface_intersection_point(lens_sequence.R[i], lens_sequence.R[i+1], lens_sequence.t[i])        
             if z_ is not None:
                 z_int[i] = lens_sequence.zdist[i] + z_

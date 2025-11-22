@@ -4,29 +4,49 @@ from matplotlib.figure import Figure
 from utils import timer_func
 
 from typing import Iterable
+from config import Config # Config is a global variable
 
-__all__ = ["plot_ray", "plot_surfaces"]
+__all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces"]
 
-def plot_ray(dists: Iterable, ys: Iterable, z_sag: Iterable = None, 
-             fig: Figure = None, color="red", linewidth=1) -> Figure:
+plot_params = {"figsize" : (12,4), "surfcolor" : "red"}
 
-    params = {"surfcolor" : "red", "ASstopcolor" : "green"}
+def _init_figure():
+    fig = plt.figure("fig1", figsize=plot_params["figsize"], layout="tight")
+    ax = fig.subplots(1,1)
+    # plot optical axis
+    ax.axhline(y=0, color="k", linestyle="--")
+    ax.set_xlabel(f"{Config.lens_unit}")
+    ax.set_ylabel(f"{Config.lens_unit}")
 
+    return fig
+
+
+def plot_paraxial_surfaces(dists: Iterable, fig: Figure = None) -> Figure:
     if fig is None:
-        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-        ax = fig.subplots(1,1)
-        # plot optical axis
-        ax.axhline(y=0, color="k", linestyle="--")
-        # draw paraxial lens surfaces, i.e. the plane through the vertex orthogonal to the optical axis
-        l=-dists[0] # object distance is negative, lens system starts at z=0
-        ax.axvline(x=l, color=params["surfcolor"], linewidth=0.5)
-        ax.text(l-0.4, 0.0, "OBJECT", rotation=90, va="center")
-        for i in range(0, len(dists)):        
-            l += dists[i]
-            ax.axvline(x=l, color=params["surfcolor"])
-        ax.text(l-0.2, 0.0, "IMAGE", rotation=90, va="center")
-    else:
-        ax = fig.axes[0]
+        fig = _init_figure()
+
+    ax = fig.axes[0]        
+
+    # plot optical axis
+    ax.axhline(y=0, color="k", linestyle="--")
+    # draw paraxial lens surfaces, i.e. the plane through the vertex orthogonal to the optical axis
+    l=-dists[0] # object distance is negative, lens system starts at z=0
+    ax.axvline(x=l, color=plot_params["surfcolor"], linewidth=0.5)
+    ax.text(l-0.4, 0.0, "OBJECT", rotation=90, va="center")
+    for i in range(0, len(dists)):        
+        l += dists[i]
+        ax.axvline(x=l, color=plot_params["surfcolor"])
+    ax.text(l-0.2, 0.0, "IMAGE", rotation=90, va="center")
+
+    return fig 
+
+
+def plot_ray(dists: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable = None, 
+             color="red", linewidth=1, dashtype="-") -> Figure:        
+    if fig is None:
+        fig = plot_paraxial_surfaces(dists, fig)
+
+    ax = fig.axes[0]
     l=-dists[0]
     zz = [l]           
     yy = [ys[0]]     
@@ -39,16 +59,16 @@ def plot_ray(dists: Iterable, ys: Iterable, z_sag: Iterable = None,
     yy = np.array(yy)
     if z_sag is None:
         z_sag = np.zeros_like(zz)
-    ax.plot(zz+z_sag, yy, "-o", color=color, linewidth=linewidth)
+    ax.plot(zz+z_sag, yy, dashtype+"o", color=color, linewidth=linewidth)
 
     if dists[0] > 600:
         ax.set_xlim(-10, np.sum(dists[1:]))
     
-    fig.axes[0].set_aspect("equal")
+    fig.axes[0].set_aspect("auto")
     return fig
 
 
-def plot_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: Iterable, 
+def plot_spherical_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: Iterable, 
                   fig: Figure = None) -> Figure:
     """
     Plot spherical lens surfaces up to their clear apertures.
@@ -57,6 +77,8 @@ def plot_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: I
     positive and negative refractive index. The hue of the color indicates the absolute 
     magnitude of the refractive index. 
     """
+    if fig is None:
+        fig = _init_figure()
 
     # idenfity singlets, doublets and triplets so that the clear apertures of their
     # surfaces can be combined into a lens
@@ -75,12 +97,6 @@ def plot_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: I
             ymax[i-multiplet_elements:i+1] = y_
             # reset
             y_ = 0.0; multiplet_elements = 0
-
-    if fig is None:
-        fig = plt.figure("fig1", figsize=(6,6), layout="tight")
-        ax = fig.subplots(1,1)
-        # plot optical axis
-        ax.axhline(y=0, color="k", linestyle="--")
 
     fig.axes[0].axis([-dists[0], np.sum(dists[1:]), -max(ymax)-2.0, max(ymax)+2.0])
     vertex = 0
@@ -104,5 +120,5 @@ def plot_surfaces(dists: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: I
                 lens_edges = []
         vertex += dists[i]
     
-    fig.axes[0].set_aspect("equal")
+    fig.axes[0].set_aspect("auto")
     return fig

@@ -58,8 +58,8 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
         yp = y0 + tanu0*zp
         
         if (np.abs(yp) > y_maxCA[surf]).any():
-            pass
-            raise RayIntersectionNotFoundError(f"Ray intersection point yp={np.max(yp)} outside maximal clear " 
+            print("yp=", yp)
+            raise RayIntersectionNotFoundError(f"Ray intersection point yp={np.max(np.abs(yp))} outside maximal clear " 
                                                f"aperture {y_maxCA[surf]} of the surface nr {surf}")
 
         theta = np.arctan(sgnR*yp/(R[surf]-zp))

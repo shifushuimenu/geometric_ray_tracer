@@ -7,7 +7,7 @@ import matplotlib as mpl
 from nonmeridional_rays import (raytrace_nonmeridional_rays, 
                                 calculate_OPD, 
                                 calculate_wavefront_aberration)
-from plot import plot_ray, plot_surfaces
+from plot import plot_ray, plot_spherical_surfaces
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
@@ -168,7 +168,7 @@ for f in range(num_fields):
     for r in range(num_rays):
         fig = plot_ray(t, P_intersect[1,:,r,f], fig, z_sag=P_intersect[2,:,r,f]-zS[:], color=colors[f])
 
-plot_surfaces(t, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
+plot_spherical_surfaces(t, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
 
 fig.axes[0].set_ylim((-36.0,10.09))
 fig.axes[0].axis("equal")
