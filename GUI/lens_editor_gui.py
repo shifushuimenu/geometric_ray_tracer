@@ -1,6 +1,8 @@
 # TODO: Use TableModel to format entries
 # https://www.pythonguis.com/tutorials/pyqt6-qtableview-modelviews-numpy-pandas/
 
+# TODO: surface count should start at zero (Object surface), like in Zemax
+
 import os
 import sys
 import numpy as np # IMPROVE: don't use numpy

@@ -21,7 +21,7 @@ from time import time
 from lens import read_lens
 from trace_ray import trace_tangential_ray
 from pupils_and_stops import find_chief_rays, intersection_line_segments
-from plot import plot_ray, plot_spherical_surfaces
+from plot import plot_ray, plot_ray_v2, plot_spherical_surfaces, plot_spherical_surfaces_v2, plot_paraxial_surfaces
 from aberrations import Seidel3rd_aberrations
 
 
@@ -69,23 +69,24 @@ y_cr, u_cr, z_sag_cr = find_chief_rays(lens_sequence, obj_height)
 # entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - lens_sequence.t[0]
 
-marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+lens_sequence.t[0]))
+marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+lens_sequence.t[0]))*0.8
 ObjNA = n[0]*np.sin(marginal_ray_angle)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/lens_sequence.t[0])
 
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray(t, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
+        fig = plot_ray_v2(zdist, y_cr[:,f][0:-1], z_sag=z_sag_cr[:,f][0:-1], color="orange", linewidth=4)
     else:
-        fig = plot_ray(t, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
-    # fig.axes[0].set_aspect("auto")
+        fig = plot_ray_v2(zdist, y_cr[:,f][0:-1], fig, z_sag=z_sag_cr[:,f][0:-1], color="orange", linewidth=4)
+plt.show()
+exit(1)
 
 
 # SECTION 3: Trace "fields" of height [obj_hgt, obj_hgt / sqrt(2), 0]
 # with a cone of rays around each chief ray launch angle. For half the opening angle of the 
 # cone of rays we choose the marginal ray angle.
-num_rays = 55 # number of rays in a ray bundle for a given field
+num_rays = 7 # number of rays in a ray bundle for a given field
 assert num_rays % 2 == 1
 y_obj = np.zeros((num_rays, num_fields))
 u_obj = np.zeros((num_rays, num_fields))
@@ -133,7 +134,7 @@ u_pupil[AS_surf,1] = np.arctan(-stop_radius/dist_right_of_AS)
 
 # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
 # y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray(y_pupil[AS_surf,0:2], u_pupil[AS_surf,0:2], lens_sequence, surf_start=AS_surf, forward=True)
-y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius, stop_radius], [0, np.arctan(-stop_radius/dist_right_of_AS), np.arctan(-stop_radius/dist_right_of_AS/2.0)], lens_sequence, surf_start=AS_surf, forward=True)
+y_tmp, u_tmp, z_sag_tmp, _ = trace_tangential_ray([stop_radius, stop_radius, stop_radius], [0, np.arctan(-stop_radius/dist_right_of_AS/5.0), np.arctan(-stop_radius/dist_right_of_AS/10.0)], lens_sequence, surf_start=AS_surf, forward=True)
 
 y_tmp[0:AS_surf,0:2] = y_pupil[0:AS_surf,:]
 u_tmp[0:AS_surf,0:2] = u_pupil[0:AS_surf,:]
@@ -206,7 +207,7 @@ ImgNA = n[num_surfs-1]*np.abs(np.sin(u[num_surfs-1, num_rays-1, num_fields-1]))
 # Calculate magnification 
 magnification = y[num_surfs, num_rays//2, 0] / obj_height[0] # As image height we take the height of the chief ray.
 
-if False:
+if True:
     # SECTION 4: Plot
     colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
     for f in range(num_fields):
@@ -219,7 +220,8 @@ if False:
 # plt.show()
 # horizontal incoming ray
 fig = plot_ray(t, y_inf[:], fig, color="m", linewidth=1)
-plot_spherical_surfaces(t, R, heights, n, fig)
+fig = plot_spherical_surfaces_v2(lens_sequence.zdist, R, heights, n, fig)
+fig.axes[0].set_aspect("equal")
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
 plt.show()
 

@@ -10,6 +10,11 @@ from config import Config
 
 __all__ = ["ParaxialRaytracer"]
 
+
+class ParaxialQuantities(object):
+    def __init__(self):
+        pass
+
 class ParaxialRaytracer(object):
     """Paraxial (ynu) ray tracer using ABCD matrices
         (yk   )  = (A B)  (y0   )
