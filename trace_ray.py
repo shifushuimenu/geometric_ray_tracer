@@ -39,7 +39,7 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
     assert 0 <= surf_start <= lens_sequence.num_surfs
     batch_dim = y_start.shape[0:]
 
-    y = np.zeros((lens_sequence.num_surfs+1,)+batch_dim) # ray height at the curved surface
+    y = np.zeros((lens_sequence.num_surfs,)+batch_dim) # ray height at the curved surface
     y_vertexplane = np.zeros_like(y)  # ray height at the vertex plane
     u = np.zeros_like(y)
     z_sag = np.zeros_like(y)
@@ -80,7 +80,7 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
         y[surf_start,...] = y_start[...].copy()
         u[surf_start,...] = u_start[...].copy()
 
-        for i in range(surf_start, lens_sequence.num_surfs):
+        for i in range(surf_start, lens_sequence.num_surfs-1):
             if np.isinf(lens_sequence.R[i]) or not lens_sequence.SAG:
                 if i > surf_start:
                     u[i,...] = np.arctan((lens_sequence.n[i-1]/lens_sequence.n[i])*np.tan(u[i-1,...]) - lens_sequence.phi[i]*y[i,...]/lens_sequence.n[i])
@@ -107,8 +107,8 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
                 y[i+1,...] = yp + np.tan(u[i,...])*(lens_sequence.t[i] - zp)
                 y_vertexplane[i+1,...] = y[i+1,...].copy()
 
-        u[lens_sequence.num_surfs,...] = u[lens_sequence.num_surfs-1,...] # The image surface does not refract
-        z_sag[lens_sequence.num_surfs,...] = 0 # Assumes that the image surface is flat.
+        u[lens_sequence.num_surfs-1,...] = u[lens_sequence.num_surfs-2,...] # The image surface does not refract
+        z_sag[lens_sequence.num_surfs-1,...] = 0 # Assumes that the image surface is flat.
 
     else: # raytrace backward
 

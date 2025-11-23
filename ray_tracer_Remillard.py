@@ -76,9 +76,9 @@ FOV = np.arctan((obj_height[0]-y_cr[1,0])/lens_sequence.t[0])
 # Plot the chief rays
 for f in range(num_fields):
     if f==0:
-        fig = plot_ray_v2(zdist, y_cr[:,f][0:-1], z_sag=z_sag_cr[:,f][0:-1], color="orange", linewidth=4)
+        fig = plot_ray(zdist, y_cr[:,f], z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
     else:
-        fig = plot_ray_v2(zdist, y_cr[:,f][0:-1], fig, z_sag=z_sag_cr[:,f][0:-1], color="orange", linewidth=4)
+        fig = plot_ray(zdist, y_cr[:,f], fig, z_sag=z_sag_cr[:,f], color="orange", linewidth=4)
 plt.show()
 exit(1)
 

@@ -17,9 +17,9 @@ def find_chief_rays(lens_sequence, obj_height, u_max_start = np.pi/3, eps=1e-6):
     obj_height = np.asarray(obj_height) #
     assert (obj_height >= 0).all()      #
     num_fields = len(obj_height)
-    y_cr = np.zeros((lens_sequence.num_surfs+1, num_fields))
-    u_cr = np.zeros((lens_sequence.num_surfs+1, num_fields))
-    z_sag_cr = np.zeros((lens_sequence.num_surfs+1, num_fields))
+    y_cr = np.zeros((lens_sequence.num_surfs, num_fields))
+    u_cr = np.zeros((lens_sequence.num_surfs, num_fields))
+    z_sag_cr = np.zeros((lens_sequence.num_surfs, num_fields))
 
     # Same maximum chief ray launch angle for all field positions.
     u_min_start = -u_max_start 

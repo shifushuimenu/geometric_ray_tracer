@@ -61,7 +61,7 @@ def plot_paraxial_surfaces(vertex: Iterable, fig: Figure = None) -> Figure:
     return fig 
 
 
-def plot_ray(dists: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable = None, 
+def plot_ray_v2(dists: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable = None, 
              color="red", linewidth=1, dashtype="-") -> Figure:        
     if fig is None:
         fig = plot_paraxial_surfaces(dists, fig)
@@ -90,15 +90,11 @@ def plot_ray(dists: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable 
     return fig
 
 
-def plot_ray_v2(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable = None, 
+def plot_ray(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable = None, 
              color="red", linewidth=1, dashtype="-") -> Figure:
     
     if fig is None:
         fig = plot_paraxial_surfaces(vertex, fig)
-
-    print("vertex.shape=", vertex.shape)
-    print("z_sag.shape=", z_sag.shape)
-
     ax = fig.axes[0]
     if z_sag is None:
         z_sag = np.zeros_like(vertex)
