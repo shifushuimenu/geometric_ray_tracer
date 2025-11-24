@@ -27,7 +27,7 @@ class ParaxialRaytracer(object):
         self.num_surfs = LS.num_surfs
         self.n = LS.n
         self.AS_surf = LS.AS_surf
-        self.zvertex = LS.zdist
+        self.zvertex = LS.vertex
         self.ABCD_matrices = []
         self.ABCD_front_group = [] # all lens elements before the aperture stop
         self.ABCD_rear_group = [] # all lens elements behind the aperture stop

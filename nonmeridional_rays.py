@@ -52,7 +52,7 @@ def raytrace_nonmeridional_rays_v2(zS, R, n, P_intersect, rayvecs):
 def raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs):
     assert R.shape == n.shape
     num_surfs = n.shape[0]
-    assert zS.shape == (num_surfs+1,)
+    assert zS.shape == (num_surfs,)
     assert P_intersect.shape == rayvecs.shape
     # num_rays = P_intersect.shape[2]
     # num_fields = P_intersect.shape[3] 
@@ -63,7 +63,7 @@ def raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvecs):
     # P_intersect = np.transpose(P_intersect, axes=(0,2,3,1))
     # rayvecs = np.transpose(rayvecs, axes=(0,2,3,1))
 
-    for i in range(1, num_surfs+1):
+    for i in range(1, num_surfs):
         # Calculate the intersection point with surface i
         xO, yO, zO = P_intersect[0:3,i-1,...]    
         xr, yr, zr = rayvecs[0:3,i-1,...]
@@ -110,9 +110,9 @@ def calculate_OPD(n, P_intersect):
     Parameters
     ----------
     n : 1-dim array_like 
-        n[0:num_surfs] : refractive indices *behind* each surface, excluding the image surface
+        n[0:num_surfs] : refractive indices *behind* each surface, including the image surface, which is not relevant.
     P_intersect : array_like
-        P_intersect[0:3, 0:num_surfs+1, 0:num_rays, ...] are the intersection points of rays with all 
+        P_intersect[0:3, 0:num_surfs, 0:num_rays, ...] are the intersection points of rays with all 
         surfaces including object and image surface. Ellipsis (...) denotes optional additional indices 
         for ray bundles at different field positions and wavelengths. The third index r=0:num_rays runs 
         over rays in a ray bundle, with r=num_rays//2 the chief ray.
@@ -132,7 +132,7 @@ def calculate_OPD(n, P_intersect):
     P_diff = np.zeros((3, num_surfs, num_rays, num_fields))    
     # Optical path segments OPS between surfaces = refractive index times distance travelled in the medium
     P_diff[:,0:,...] = np.diff(P_intersect[:,:,...],axis=1)
-    OPS = np.linalg.norm(P_diff,axis=0) * n[:,np.newaxis,np.newaxis]
+    OPS = np.linalg.norm(P_diff,axis=0) * n[:-1,np.newaxis,np.newaxis] # exclude refractive index behind image surface
     # Cumulative optical path up to a given surface.    
     OP = np.cumsum(OPS, axis=0)    
     # Optical path difference relative to the chief ray.
@@ -174,8 +174,7 @@ def calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0):
     P_intersect_XP : ndarray
         Intersection points of the ray bundles with the exit pupil.
     """
-    _, tmp, num_rays, num_fields = P_intersect.shape
-    num_surfs = tmp - 1
+    _, _, num_rays, num_fields = P_intersect.shape
     # Wavefront aberrations across the field
     OPD_ideal = np.zeros((num_rays, num_fields))
     OPD_ideal_tmp = np.zeros_like(OPD_ideal)

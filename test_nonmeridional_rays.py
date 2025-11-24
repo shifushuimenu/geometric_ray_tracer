@@ -8,66 +8,18 @@ from nonmeridional_rays import (raytrace_nonmeridional_rays,
                                 calculate_OPD, 
                                 calculate_wavefront_aberration)
 from plot import plot_ray, plot_spherical_surfaces
+from lens import read_lens
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
 # Load txt file, determine the surface powers and locate the surface which 
 # is the aperture stop. Make sure there is only one aperture stop. 
 
-# Take surface sag into account.
-SAG = True
-
 lens_file = sys.argv[1]
 max_obj_height = float(sys.argv[2])
 EPD = float(sys.argv[3])
 
-lens_layout = np.loadtxt(lens_file, comments="#", skiprows=1)
-num_surfs = lens_layout.shape[0]
-
-stop_flag = np.zeros(num_surfs)
-R = np.zeros(num_surfs)
-t = np.zeros(num_surfs)
-n = np.zeros(num_surfs)
-V_d = np.zeros(num_surfs)
-phi = np.zeros(num_surfs)
-
-zS = np.zeros(num_surfs+1)
-
-t[0] = lens_layout[0,3]
-AS_surf = 0
-sum_dists = 0
-zS[0] = 0
-for s in range(0, num_surfs):
-    stop_flag[s] = lens_layout[s,1]
-    R[s] = lens_layout[s, 2] 
-    t[s] = lens_layout[s, 3]
-    n[s] = lens_layout[s, 4]
-    V_d[s] = lens_layout[s, 5]
-    if s  > 0:
-        phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
-
-    sum_dists += t[s]
-    zS[s+1] = sum_dists 
-
-# special case: first surface is the aperture stop
-if stop_flag[1] == 1:
-    AS_surf = 1
-    pass
-
-# Find the aperture stop and verify that there is only one aperture stop.
-found_AS = False
-for s in range(1, num_surfs):    
-    if stop_flag[s] == 1:
-        if not found_AS:
-            AS_surf = s
-            found_AS = True
-        else:
-            raise ValueError("There can be only one aperture stop.")
-
-if AS_surf == 0:
-    raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
-
-print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from the front vertex.")
+lens_sequence = read_lens(lens_file, SAG = True)
 
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
@@ -79,6 +31,19 @@ print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), "mm from 
 # at full object height, at 70% object height and on axis.
 obj_height = [max_obj_height, max_obj_height / np.sqrt(2.0), 0.0]
 num_fields = len(obj_height)
+
+# REMOVE
+AS_surf = lens_sequence.AS_surf
+SAG = lens_sequence.SAG
+n = lens_sequence.n
+phi = lens_sequence.phi
+t = lens_sequence.t
+R = lens_sequence.R
+num_surfs = lens_sequence.num_surfs
+zdist = lens_sequence.vertex
+stop_flag = lens_sequence.stop_flag
+Vd = lens_sequence.Vd
+# REMOVE 
 
 # ====================================
 # Launch a non-meridional ray fan
@@ -100,8 +65,8 @@ num_rays = (num_rays_per_fan-1)*num_azimuth + 1
 # The chief ray is is labelled as the first ray: (P_intersect[0:3,0:num_surfs+1,0,f], rayvecs[0:3,0:num_surfs+1,0,f])
 
 # ===========================================================================================================================
-P_intersect = np.zeros((3,num_surfs+1,num_rays,num_fields))
-rayvec = np.zeros((3,num_surfs+1,num_rays,num_fields)) 
+P_intersect = np.zeros((3,num_surfs,num_rays,num_fields))
+rayvec = np.zeros((3,num_surfs,num_rays,num_fields)) 
 gamma2_list = [(k-num_rays_per_fan//2)*dg2 for k in range(num_rays_per_fan) if k != num_rays_per_fan//2] # don't include chief ray
 gamma3_list = [k*dg3 for k in range(num_azimuth)]
 print("raytrace non-meridional rays")
@@ -119,10 +84,42 @@ for f in range(num_fields):
                                               -cos(gamma1_field[f])*sin(gamma2)*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2), 
                                               -sin(gamma1_field[f])*sin(gamma2)*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2)])
             
-P_intersect, rayvec = raytrace_nonmeridional_rays(zS, R, n, P_intersect, rayvec)
+P_intersect, rayvec = raytrace_nonmeridional_rays(zdist, R, n, P_intersect, rayvec)
 # ===========================================================================================================================
 
-test1, test2 = raytrace_nonmeridional_rays(zS, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvec[:,:,:,np.newaxis,np.newaxis])
+test1, test2 = raytrace_nonmeridional_rays(zdist, R, n, P_intersect[:,:,:,np.newaxis,np.newaxis], rayvec[:,:,:,np.newaxis,np.newaxis])
+
+
+colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
+fig = None
+for f in range(num_fields):
+    for r in range(num_rays):
+        z_sag = P_intersect[2,:,r,f]-zdist[:]
+        z_sag[0] = 0
+        fig = plot_ray(zdist, P_intersect[1,:,r,f], fig, z_sag = z_sag, color=colors[f])
+
+plot_spherical_surfaces(zdist, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
+
+fig.axes[0].set_ylim((-36.0,10.09))
+fig.axes[0].axis("equal")
+plt.show()
+
+# Plot intersection points in the image plane
+# Plot off-axis ray bundles relative to the chief ray.
+fig = plt.figure("fig2", figsize=(6,6), edgecolor="g")
+axs = fig.subplots(1,num_fields,sharex=True)
+for f in range(num_fields):
+    axs[f].axis("equal")
+    y_CR = P_intersect[1,-1,0,f]
+    axs[f].plot(P_intersect[0,-1,:,f], P_intersect[1,-1,:,f]-y_CR, 'o', color=colors[f])
+fig.tight_layout()
+plt.show()
+
+
+
+
+
+
 
 # =============================================================================================
 # TEST: Plot optical path difference relative to chief ray for different field positions
@@ -130,7 +127,7 @@ colors = ["blue", "green", "red"]
 OPD = calculate_OPD(n, P_intersect)
 for f in range(num_fields):
     for r in range(num_rays):
-       plt.plot(range(num_surfs), OPD[:,r,f], color=colors[f])
+       plt.plot(range(num_surfs-1), OPD[:,r,f], color=colors[f])
 plt.show()
 
 plt.plot(P_intersect[0,-5,:,f], OPD[-5,:,f], '-o')
@@ -161,26 +158,3 @@ ax2.set_title("actual OPD")
 ax2.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], P_intersect_XP[2,:,f], 'o') #OPD_actual[:,f], marker='o')
 plt.show()
 # =============================================================================================
-
-colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
-fig = None
-for f in range(num_fields):
-    for r in range(num_rays):
-        fig = plot_ray(t, P_intersect[1,:,r,f], fig, z_sag=P_intersect[2,:,r,f]-zS[:], color=colors[f])
-
-plot_spherical_surfaces(t, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
-
-fig.axes[0].set_ylim((-36.0,10.09))
-fig.axes[0].axis("equal")
-plt.show()
-
-# Plot intersection points in the image plane
-# Plot off-axis ray bundles relative to the chief ray.
-fig = plt.figure("fig2", figsize=(6,6), edgecolor="g")
-axs = fig.subplots(1,num_fields,sharex=True)
-for f in range(num_fields):
-    axs[f].axis("equal")
-    y_CR = P_intersect[1,-1,0,f]
-    axs[f].plot(P_intersect[0,-1,:,f], P_intersect[1,-1,:,f]-y_CR, 'o', color=colors[f])
-fig.tight_layout()
-plt.show()

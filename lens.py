@@ -13,7 +13,7 @@ class LensSequence(object):
     lens_unit: str = "mm" # lens unit millimeter
     R: np.ndarray = field(default_factory = np.ndarray)  # radii of curvate 
     t: np.ndarray = field(default_factory = np.ndarray)  # distances between surfaces
-    zdist: np.ndarray = field(default_factory = np.ndarray)
+    vertex: np.ndarray = field(default_factory = np.ndarray)
     n: np.ndarray = field(default_factory = np.ndarray)     # index of refraction *after* each surface
     Vd: np.ndarray = field(default_factory = np.ndarray)    # Abbe number of medium *after* each surface 
     phi: np.ndarray = field(default_factory = np.ndarray)   # surface power
@@ -179,7 +179,7 @@ def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf, v
 
     For a flat surface s without intersection z_int[s] is the location of the vertex and y_int[s] = inf.
     """
-    z_int = lens_sequence.zdist.copy()
+    z_int = lens_sequence.vertex.copy()
     absy_int = np.empty(lens_sequence.num_surfs)
     absy_int.fill(maxval_CA)
 
@@ -190,14 +190,14 @@ def _calc_surface_intersections(lens_sequence: LensSequence, maxval_CA=np.inf, v
                print(f"surface {i} curved to the left")
             z_, y_ = _surface_intersection_point(lens_sequence.R[i-1], lens_sequence.R[i], lens_sequence.t[i-1])
             if z_ is not None:
-                z_int[i] = lens_sequence.zdist[i-1] + z_
+                z_int[i] = lens_sequence.vertex[i-1] + z_
                 absy_int[i] = y_
         elif (lens_sequence.R[i] > 0): # surface curved to the right
             if verbose:
                print(f"surface {i} curved to the right")
             z_, y_ = _surface_intersection_point(lens_sequence.R[i], lens_sequence.R[i+1], lens_sequence.t[i])        
             if z_ is not None:
-                z_int[i] = lens_sequence.zdist[i] + z_
+                z_int[i] = lens_sequence.vertex[i] + z_
                 absy_int[i] = y_
         else:
             raise ValueError("Zero radius of curvature is not allowed")
