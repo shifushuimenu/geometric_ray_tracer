@@ -9,6 +9,7 @@ from nonmeridional_rays import (raytrace_nonmeridional_rays,
                                 calculate_wavefront_aberration)
 from plot import plot_ray, plot_spherical_surfaces
 from lens import read_lens
+from config import Config
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
@@ -20,6 +21,7 @@ max_obj_height = float(sys.argv[2])
 EPD = float(sys.argv[3])
 
 lens_sequence = read_lens(lens_file, SAG = True)
+config = Config(max_obj_height, EPD)
 
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
@@ -98,7 +100,7 @@ for f in range(num_fields):
         z_sag[0] = 0
         fig = plot_ray(zdist, P_intersect[1,:,r,f], fig, z_sag = z_sag, color=colors[f])
 
-plot_spherical_surfaces(zdist, R, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), n, fig) # IMPROVE: use actual clear aperture at each surface 
+plot_spherical_surfaces(zdist, R, n, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), config, fig) # IMPROVE: use actual clear aperture at each surface 
 
 fig.axes[0].set_ylim((-36.0,10.09))
 fig.axes[0].axis("equal")

@@ -1,23 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from utils import timer_func
+from trace_ray import MeridionalRayData
 
-from typing import Iterable, Tuple
-from config import Config # Config is a global variable
+from typing import Iterable, Tuple, List
+from config import Config
 
-__all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces"]
+__all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces", "plot_ray_bundles"]
 
-plot_params = {"figsize" : (12,4), "surfcolor" : "red"}
+plot_params = {"figsize" : (12,4), "surfcolor" : "red", "lens_unit" : "mm"}
 
 def _init_figure():
     fig = plt.figure("fig1", figsize=plot_params["figsize"], layout="tight")
     ax = fig.subplots(1,1)
     # plot optical axis
     ax.axhline(y=0, color="k", linestyle="--")
-    ax.set_xlabel(f"{Config.lens_unit}")
-    ax.set_ylabel(f"{Config.lens_unit}")
+    ax.set_xlabel(f"{plot_params["lens_unit"]}")
+    ax.set_ylabel(f"{plot_params["lens_unit"]}")
 
     return fig
 
@@ -59,8 +61,8 @@ def plot_ray(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable
     return fig
 
 
-def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, clear_aperture: Iterable, ns: Iterable, 
-                  fig: Figure = None) -> Figure:
+def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_aperture: Iterable, 
+                            config: Config, fig: Figure = None) -> Tuple[Figure, List, List]:
     """
     Plot spherical lens surfaces up to their clear apertures.
 
@@ -117,7 +119,7 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, clear_aperture: Iter
     if fig is None:
         fig = plot_paraxial_surfaces(vertex) #_init_figure()
 
-    nmat = np.invert((np.isclose(ns, Config.n_air, atol=1e-6)))  # Which segements are materials other than air ?
+    nmat = np.invert((np.isclose(ns, config.n_air, atol=1e-6)))  # Which segements are materials other than air ?
     
     surface_segments = []
     edge_segments = []
@@ -151,6 +153,19 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, clear_aperture: Iter
 
     fig.axes[0].set_aspect("equal")
     return fig, surface_segments, edge_segments
+
+
+def plot_ray_bundles(ray_data: MeridionalRayData, fig: Figure) -> Figure:
+    num_fields = ray_data.num_fields
+    num_rays = ray_data.num_rays
+    colors = ["blue", "green", "red"] if num_fields == 3 else mpl.color_sequences["tab10"][0:num_fields]
+    for f in range(num_fields):
+        # plot the chief ray for each ray bundle 
+        fig = plot_ray(ray_data.vertex, ray_data.y[:,ray_data.CHIEF_RAY_INDEX,f], fig, ray_data.z_sag[:,ray_data.CHIEF_RAY_INDEX,f], 
+                       color="orange", linewidth=2)
+        for r in range(num_rays):
+            fig = plot_ray(ray_data.vertex, ray_data.y[:,r,f], fig, ray_data.z_sag[:,r,f], color=colors[f])
+    return fig      
 
 
 # def plot_paraxial_surfaces_v2(dists: Iterable, fig: Figure = None) -> Figure:

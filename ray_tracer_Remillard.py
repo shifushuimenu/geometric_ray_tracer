@@ -19,12 +19,13 @@ import matplotlib as mpl
 from time import time
 
 from lens import read_lens
+from config import Config
 from trace_ray import trace_tangential_ray
 from pupils_and_stops import find_chief_rays, intersection_line_segments
 from plot import plot_ray, plot_spherical_surfaces, plot_paraxial_surfaces
 from aberrations import Seidel3rd_aberrations
 
-plt.ion()
+# plt.ion()
 
 # SECTION 1:
 # User input: lens prescription file, field of view, F/# and wavelength.
@@ -33,6 +34,9 @@ max_obj_height = float(sys.argv[2])
 EPD = float(sys.argv[3]) # entrance pupil diameter
 
 lens_sequence = read_lens(lens_file, SAG = True)
+
+# needed for updated interface of plot_spherical_surfaces()
+config = Config(max_obj_height, EPD)
 
 # SECTION 2: Calculate the chief ray piercing height on the first surface.
 # The chief ray goes from the tip of the object through the center of the aperture stop.
@@ -66,7 +70,7 @@ y_cr, u_cr, z_sag_cr = find_chief_rays(lens_sequence, obj_height)
 # entrance pupil location (measured from the vertex of the first surface)
 EPL = obj_height[0]/np.tan(u_cr[0,0]) - lens_sequence.t[0]
 
-marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+lens_sequence.t[0]))*0.8
+marginal_ray_angle = np.arctan((EPD/2.0)/(EPL+lens_sequence.t[0]))
 ObjNA = n[0]*np.sin(marginal_ray_angle)
 FOV = np.arctan((obj_height[0]-y_cr[1,0])/lens_sequence.t[0])
 
@@ -214,14 +218,14 @@ if True:
 
 # # horizontal incoming ray
 # fig = plot_ray(zdist, y_inf[:], fig, color="m", linewidth=1)
-fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, heights, n, fig)
+fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, n, heights, fig)
 
 for l in surface_segments[4]:
     print(l[0].set_color("g"))
 
 fig.axes[0].set_aspect("equal")
 plt.ylim((-1.2*max(max_obj_height, max(heights)), 1.2*max(max_obj_height, max(heights))))
-# plt.show()
+plt.show()
 
 # Plot the maximal clear apertures
 ax = fig.axes[0]
