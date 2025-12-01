@@ -1,5 +1,5 @@
 """Ray tracing of rays that do not lie in the tangential plane spanned by the object height and the optical axis (= non-meridional rays)"""
-from math import sqrt, cos, sin
+from math import sqrt
 import numpy as np
 from utils import timer_func
 
@@ -109,7 +109,7 @@ def calculate_OPD(n, P_intersect):
 
     Parameters
     ----------
-    n : 1-dim array_like 
+    n : 1-dim array_like
         n[0:num_surfs] : refractive indices *behind* each surface, including the image surface, which is not relevant.
     P_intersect : array_like
         P_intersect[0:3, 0:num_surfs, 0:num_rays, ...] are the intersection points of rays with all 
@@ -159,9 +159,9 @@ def calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0):
     OPD[0:num_surfs, 0:num_rays, ...] : ndarray
         OPD is the optical path difference at every surface relative to the
         chief ray of each ray bundle, in lens units (typically mm).
-    P_intersect[0:3, 0:num_surfs+1, 0:num_rays, 0:num_fields] : ndarray
+    P_intersect[0:3, 0:num_surfs, 0:num_rays, 0:num_fields] : ndarray
         Intersection point at each surface (including object and image surface)
-    rayvec[0:3, 0:num_surfs+1, 0:num_rays, 0:num_fields] : ndarray
+    rayvec[0:3, 0:num_surfs, 0:num_rays, 0:num_fields] : ndarray
         Unit-length ray directions at each intersection point
     XPloc : float 
         z-location of the exit pupil

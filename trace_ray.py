@@ -41,8 +41,7 @@ class RayTracer(object):
         assert y.shape == (num_surfs, num_rays, num_fields)
 
         heights = np.zeros(num_surfs)
-        heights[0] = 0
-        for s in range(1, num_surfs):
+        for s in range(0, num_surfs):
             for f in range(num_fields):
                 for r in [0,num_rays-1]: # consider only outermost rays
                     hs = np.abs(y[s,r,f])
@@ -82,16 +81,16 @@ class RayTracer(object):
 
         self.lens_sequence = lens_sequence
         # 1. Determine the chief rays for all object heights.
-        y_cr, u_cr, z_sag_cr = self.find_chief_rays(config.obj_heights)
+        y_chief, u_chief, z_sag_chief = self.find_chief_rays(config.obj_heights)
 
         # entrance pupil location (measured from the vertex of the first surface)
-        self.EPL = config.obj_heights[0]/np.tan(u_cr[0,config.MAX_OBJ_HEIGHT_INDEX]) - lens_sequence.t[0]
+        self.EPL = config.obj_heights[0]/np.tan(u_chief[0,config.MAX_OBJ_HEIGHT_INDEX]) - lens_sequence.t[0]
         self.marginal_ray_angle = np.arctan((config.EPD/2.0)/(self.EPL+lens_sequence.t[0]))
         self.ObjNA = lens_sequence.n[0]*np.sin(self.marginal_ray_angle)
-        self.FOV = np.arctan((config.obj_heights[config.MAX_OBJ_HEIGHT_INDEX]-y_cr[1,config.MAX_OBJ_HEIGHT_INDEX])/lens_sequence.t[0])
+        self.FOV = np.arctan((config.obj_heights[config.MAX_OBJ_HEIGHT_INDEX]-y_chief[1,config.MAX_OBJ_HEIGHT_INDEX])/lens_sequence.t[0])
 
         # 2. Trace all ray bundles and find the clear apertures.
-        y, u, z_sag, y_vertexplane = self.trace_ray_bundles(config.obj_heights, u_cr[0,:], self.marginal_ray_angle, config.num_rays)
+        y, u, z_sag, y_vertexplane = self.trace_ray_bundles(config.obj_heights, u_chief[0,:], self.marginal_ray_angle, config.num_rays)
 
         clear_apertures, self.stop_radius = self.calculate_clear_apertures(y, config)
 

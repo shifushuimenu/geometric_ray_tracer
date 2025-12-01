@@ -13,18 +13,50 @@ class LensSequence(object):
     lens_unit: str = "mm" # lens unit millimeter
     R: np.ndarray = field(default_factory = np.ndarray)  # radii of curvate 
     t: np.ndarray = field(default_factory = np.ndarray)  # distances between surfaces
-    vertex: np.ndarray = field(default_factory = np.ndarray)
     n: np.ndarray = field(default_factory = np.ndarray)     # index of refraction *after* each surface
     Vd: np.ndarray = field(default_factory = np.ndarray)    # Abbe number of medium *after* each surface 
-    phi: np.ndarray = field(default_factory = np.ndarray)   # surface power
-    forward: bool = True                                 # traverse lens system forward or backward
+    clear_diameter: np.ndarray = field(default_factory = np.ndarray)
+    forward: bool = True
+    vertex: np.ndarray = field(init=False)    
+    phi: np.ndarray = field(init=False)   # surface power                            # traverse lens system forward or backward
     y_nnint: np.ndarray = field(init=False)  # y-coord where neighbouring surfaces intersect
-    z_nnint: np.ndarray = field(init=False)  # z-coord where neighbouring surfaces intersect
+    z_nnint: np.ndarray = field(init=False)  # z-coord where neighbouring surfaces intersect    
 
     def __post_init__(self):
+        # vertex[s] is the total distance of surface s from the first vertex of the lens system.        
+        vertex = np.zeros(self.num_surfs)
+        vertex[0] = -self.t[0]  # vertex[0] < 0 is the object distance.
+        vertex[1] = 0
+        vertex[2:] = np.cumsum(self.t[1:self.num_surfs-1])
+        super().__setattr__("vertex", vertex) # This form of assignment is needed because the dataclass is frozen.
+
+        phi = np.zeros(self.num_surfs)
+        for s in range(0, self.num_surfs-1): # image surface has no power
+            if s  > 0:
+                phi[s] = (self.n[s] - self.n[s-1]) / self.R[s]  # surface power 
+        super().__setattr__("phi", phi)
+
         _z, _y = _calc_surface_intersections(self, maxval_CA=120.0)
         super().__setattr__("y_nnint", _y)
         super().__setattr__("z_nnint", _z)
+
+        # Find the aperture stop and verify that there is only one aperture stop.
+        AS_surf = 0 
+        found_AS = False
+        for s in range(1, self.num_surfs):    
+            if self.stop_flag[s] == 1:
+                if not found_AS:
+                    AS_surf = s
+                    found_AS = True
+                else:
+                    raise ValueError("There can be only one aperture stop.")
+        if AS_surf == 0:
+            raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
+
+        print("Aperture stop is surface", AS_surf, "at", np.sum(self.t[1:AS_surf]), 
+            f"{self.lens_unit} from the front vertex.")        
+
+        super().__setattr__("AS_surf", AS_surf)
 
 
 def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequence:
@@ -44,7 +76,6 @@ def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequ
     zdist = np.zeros(num_surfs)
     n = np.zeros(num_surfs)
     Vd = np.zeros(num_surfs)
-    phi = np.zeros(num_surfs)
 
     t[0] = lens_layout[0,3]
     for s in range(0, num_surfs):
@@ -53,32 +84,9 @@ def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequ
         t[s] = lens_layout[s, 3]
         n[s] = lens_layout[s, 4]
         Vd[s] = lens_layout[s, 5]
-        if s  > 0:
-            phi[s] = (n[s] - n[s-1]) / R[s]  # surface power 
-
-    # zdist[s] is the total distance of surface s from the first vertex of the lens system.
-    # zdist[0] < 0 is the object distance.    
-    zdist[0] = -t[0]
-    zdist[1] = 0
-    zdist[2:] = np.cumsum(t[1:num_surfs-1])
 
     # The distance behing the image surface is not needed.
-
-    # Find the aperture stop and verify that there is only one aperture stop.
-    AS_surf = 0 
-    found_AS = False
-    for s in range(1, num_surfs):    
-        if stop_flag[s] == 1:
-            if not found_AS:
-                AS_surf = s
-                found_AS = True
-            else:
-                raise ValueError("There can be only one aperture stop.")
-    if AS_surf == 0:
-        raise ValueError(f"The object surface cannot be the aperture stop. AS_surf = {AS_surf}")
-
-    print("Aperture stop is surface", AS_surf, "at", np.sum(t[1:AS_surf]), 
-          f"{lens_unit} from the front vertex.")
+    AS_surf = 0 # will be reset later
 
     lens_sequence = LensSequence(
         num_surfs, 
@@ -88,10 +96,9 @@ def read_lens(filename: str, SAG: bool = True, lens_unit: str ="mm") -> LensSequ
         lens_unit,
         R[:],
         t[:],
-        zdist[:],
         n[:],
         Vd[:],
-        phi[:],
+        np.zeros_like(R), # clear diameter are calculated during ray tracing
         forward=True,
     )
 

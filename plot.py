@@ -13,7 +13,7 @@ __all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces", "plo
 
 plot_params = {"figsize" : (12,4), "surfcolor" : "red", "lens_unit" : "mm"}
 
-def _init_figure():
+def init_figure():
     fig = plt.figure("fig1", figsize=plot_params["figsize"], layout="tight")
     ax = fig.subplots(1,1)
     # plot optical axis
@@ -30,7 +30,7 @@ def plot_paraxial_surfaces(vertex: Iterable, fig: Figure = None) -> Figure:
     The object distance is negative, the lens system starts at z=0.
     """
     if fig is None:
-        fig = _init_figure()
+        fig = init_figure()
 
     ax = fig.axes[0]        
     
@@ -53,7 +53,7 @@ def plot_ray(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable
     if z_sag is None:
         z_sag = np.zeros_like(vertex)
 
-    ax.plot(vertex+z_sag, ys, dashtype+"o", color=color, linewidth=linewidth)
+    ax.plot(vertex+z_sag, ys, dashtype, color=color, linewidth=linewidth)
 
     if np.abs(vertex[0]) > 600:
         ax.set_xlim(-10, vertex[-1])
@@ -61,7 +61,7 @@ def plot_ray(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable
     return fig
 
 
-def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_aperture: Iterable, 
+def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_apertures: Iterable, 
                             config: Config, fig: Figure = None) -> Tuple[Figure, List, List]:
     """
     Plot spherical lens surfaces up to their clear apertures.
@@ -76,9 +76,8 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
     surface_segments[1:num_surfs-1]: Line2D objects representing the drawn lens surfaces
     edge_segments: Line2D objects representing the horizontal lens edges
     """
-
-    def _plot_spherical_segment_i(i: int, front: bool, fig: Figure) -> Tuple[Figure, Tuple]:
-        zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(clear_aperture[i]/Rs[i])**2))
+    def _plot_spherical_segments_i(i: int, front: bool, fig: Figure) -> Tuple[Figure, Tuple]:
+        zmax = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(clear_apertures[i]/Rs[i])**2))
         zz = np.linspace(0, zmax, 2000)
         # plot the curved lens surface above and below the optical axis
         yy = +np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
@@ -89,23 +88,23 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
 
         zpos = vertex[i]+np.sign(Rs[i])*zmax
         if front: # front surface of a lens elements
-            if clear_aperture[i] < clear_aperture[i+1]:
+            if clear_apertures[i] < clear_apertures[i+1]:
                 # plot vertical lines
-                vline_up = fig.axes[0].plot([zpos, zpos], [clear_aperture[i], clear_aperture[i+1]], color="k", linewidth=2)
-                vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_aperture[i+1], -clear_aperture[i]], color="k", linewidth=2)
+                vline_up = fig.axes[0].plot([zpos, zpos], [clear_apertures[i], clear_apertures[i+1]], color="k", linewidth=2)
+                vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_apertures[i+1], -clear_apertures[i]], color="k", linewidth=2)
                 line2d_segments += (vline_up, vline_dn,)
         else: # back surface of a lens element
-            if clear_aperture[i] < clear_aperture[i-1]:
-                vline_up = fig.axes[0].plot([zpos, zpos], [clear_aperture[i], clear_aperture[i-1]], color="k", linewidth=2)
-                vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_aperture[i-1], -clear_aperture[i]], color="k", linewidth=2)
+            if clear_apertures[i] < clear_apertures[i-1]:
+                vline_up = fig.axes[0].plot([zpos, zpos], [clear_apertures[i], clear_apertures[i-1]], color="k", linewidth=2)
+                vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_apertures[i-1], -clear_apertures[i]], color="k", linewidth=2)
                 line2d_segments += (vline_up, vline_dn,)
         return fig, line2d_segments
     
     def _draw_horizontal_edge(i: int, fig: Figure) -> Figure:
-        zmax1 = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(clear_aperture[i]/Rs[i])**2))
-        zmax2 = np.abs(Rs[i+1])*(1.0-np.sqrt(1.0-(clear_aperture[i+1]/Rs[i+1])**2))
+        zmax1 = np.abs(Rs[i])*(1.0-np.sqrt(1.0-(clear_apertures[i]/Rs[i])**2))
+        zmax2 = np.abs(Rs[i+1])*(1.0-np.sqrt(1.0-(clear_apertures[i+1]/Rs[i+1])**2))
 
-        max_CA = max(clear_aperture[i], clear_aperture[i+1])
+        max_CA = max(clear_apertures[i], clear_apertures[i+1])
         zpos1 = vertex[i]+np.sign(Rs[i])*zmax1
         zpos2 = vertex[i+1]+np.sign(Rs[i+1])*zmax2
         # top 
@@ -115,24 +114,33 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
 
         return fig, (edge_top, edge_bottom)
 
+    num_surfs = len(vertex)
 
     if fig is None:
         fig = plot_paraxial_surfaces(vertex) #_init_figure()
 
-    nmat = np.invert((np.isclose(ns, config.n_air, atol=1e-6)))  # Which segements are materials other than air ?
+    nmat = np.invert((np.isclose(ns[:-1], config.n_air, atol=1e-6)))  # Which segements are materials other than air ?
     
     surface_segments = []
     edge_segments = []
-    surface_done = np.array([False for _ in range(len(vertex))])
-    for i in range(1,len(vertex)-1):
+    surface_done = np.array([False for _ in range(num_surfs)])
+
+    # plot object plane
+    line2d_object = fig.axes[0].plot([vertex[0], vertex[0]], [-clear_apertures[0], clear_apertures[0]],
+                                     color="k", linewidth=2)
+    # plot image plane 
+    line2d_image = fig.axes[0].plot([vertex[num_surfs-1],vertex[num_surfs-1]], 
+                                    [-clear_apertures[num_surfs-1], clear_apertures[num_surfs-1]], color="k", linewidth=2)
+
+    for i in range(1,num_surfs-1):
         if nmat[i]:            
             # Draw front surface up to its clear aperture and a vertical line from a clear aperture that is smaller 
             # than the maximal clear aperture of the lens element to the lens edge.
-            fig, line2d_segments_front = _plot_spherical_segment_i(i, True, fig)
+            fig, line2d_segments_front = _plot_spherical_segments_i(i, True, fig)
 
             # Draw back surface. In a cemented lens adjacent surface are plotted twice. Draw a vertical line from a 
             # clear aperture that is smaller than the maximal clear aperture of the lens element to the lens edge.
-            fig, line2d_segments_back = _plot_spherical_segment_i(i+1, False, fig)
+            fig, line2d_segments_back = _plot_spherical_segments_i(i+1, False, fig)
 
             # Draw horizontal lens edges.
             fig, edges = _draw_horizontal_edge(i, fig)
@@ -147,11 +155,15 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
                 surface_done[i:i+2] = True
 
     # Insert empty entries so that surface indexing is consistent.
-    for i in range(0, len(vertex)):
+    for i in range(0, num_surfs):
         if not surface_done[i]:
             surface_segments.insert(i, [])
 
-    fig.axes[0].set_aspect("equal")
+    # # object and image plane
+    surface_segments[0] = [line2d_object]
+    surface_segments[num_surfs-1] = [line2d_image]
+
+    # fig.axes[0].set_aspect("equal")
     return fig, surface_segments, edge_segments
 
 

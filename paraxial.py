@@ -2,6 +2,7 @@
 # - visualize: plot paraxial focus and principal planes 
 # - plot Gaussian intensity profile and beam waist as a function of z together with waist and divergence rays
 # - Calculate position of nodal points if the index of refraction before and after the lens system is different.
+# - make n_air adjustable
 import numpy as np
 from typing import Tuple
 
@@ -28,6 +29,7 @@ class ParaxialRaytracer(object):
         self.n = LS.n
         self.AS_surf = LS.AS_surf
         self.zvertex = LS.vertex
+
         self.ABCD_matrices = []
         self.ABCD_front_group = [] # all lens elements before the aperture stop
         self.ABCD_rear_group = [] # all lens elements behind the aperture stop
@@ -77,7 +79,7 @@ class ParaxialRaytracer(object):
     def make_conjugate_matrix(self, object_dist, image_dist):
         return self.Tmat(image_dist) @ self.system_matrix @ self.Tmat(-object_dist)
             
-    def Tmat(self, t, n=Config.n_air):
+    def Tmat(self, t, n=1.0):
         """Return ABCD translation matrix
         d - float:  distance to the right of the optical element"
         n - float:  index of refraction"""
@@ -89,7 +91,7 @@ class ParaxialRaytracer(object):
         return np.array([[1.0,  0.0],
                          [-phi, 1.0]], dtype=np.float64)
     
-    def Mmat(self, R, n=Config.n_air):
+    def Mmat(self, R, n=1.0):
         """Return ABCD mirror matrix"""
         return self. Rmat(phi=-2.0*n/R)
     
