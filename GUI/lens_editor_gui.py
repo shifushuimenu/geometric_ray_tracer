@@ -8,6 +8,9 @@ import sys
 import numpy as np # IMPROVE: don't use numpy
 from datetime import datetime
 
+from interface import DisplayInterface
+from lens import LensSequence
+
 os.environ["QT_API"] = "PyQt6"
 
 from PyQt6.QtWidgets import (
@@ -107,7 +110,7 @@ class LensEditor(QMainWindow):
         Gaussian_beam_action = QAction(QIcon(), "&Gaussian Beam", self)        
 
         self.raytraceWindow = None
-        raytrace_action.triggered.connect(self.showRaytraceDiagram)
+        raytrace_action.triggered.connect(self.print_lens_sequence_test) #connect(self.showRaytraceDiagram)
         self.raySpotDiagramWindow = None
         spot_action.triggered.connect(self.showRaySpotDiagram)
         self.rayFanDiagramWindow = None
@@ -152,6 +155,11 @@ class LensEditor(QMainWindow):
 
     def add_lens_configuration(self):
         self.configTabs.addNewConfig()
+
+    def print_lens_sequence_test(self):
+        current_tab = self.configTabs.currentWidget()
+        lens_sequence = current_tab.get_lens_sequence_from_table(current_tab.table)        
+        print("lens_sequence=", lens_sequence)
 
     # =================================
     # Event handlers for toolbar 
@@ -348,6 +356,28 @@ class LensEditorConfigBase(QWidget):
         # adjust column width to match header entries and allow user to change the column width interactively
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+
+    # Read current lens sequence 
+    def _get_column_data(self, table: QTableWidget, column: int):
+        data = []
+        for row in range(table.rowCount()):
+            item = table.item(row, column)
+            data.append(float(item.text()) if item else None)
+        return data
+
+    def get_lens_sequence_from_table(self, table: QTableWidget) -> LensSequence:
+        stop_flag = list(map(int, self._get_column_data(table, 1)))
+        R = self._get_column_data(table, 2)
+        t = self._get_column_data(table, 3)
+        n = self._get_column_data(table, 4)
+        Vd = self._get_column_data(table, 5)
+        clear_diameter = self._get_column_data(table, 6)
+        num_surfs = len(R)
+        AS_surf = self.stop_surface
+        assert stop_flag[AS_surf] == 1
+
+        return LensSequence(num_surfs, AS_surf, stop_flag, True, "mm", R, t, n, Vd, 
+                     clear_diameter, True)
 
     # ===================
     # Event handlers
