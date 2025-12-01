@@ -648,6 +648,7 @@ class RaySpotDiagram(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Ray Spot Diagram")
         self.label = QLabel("Ray Spot Diagram")
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -658,6 +659,7 @@ class RayFanDiagram(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Ray Fan Plot")
         self.label = QLabel("Ray Fan Plot")
         layout = QVBoxLayout()
         layout.addWidget(self.label)

@@ -199,5 +199,3 @@ def calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0):
         wavefront_aberration[:,f] = OPD_actual[:,f] - OPD_ideal[:,f]
 
     return OPD_ideal, OPD_actual, wavefront_aberration, P_intersect_XP
-
-

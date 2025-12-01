@@ -136,7 +136,7 @@ plt.plot(P_intersect[0,-5,:,f], OPD[-5,:,f], '-o')
 plt.plot(P_intersect[1,-5,:,f], OPD[-5,:,f], '-o')
 plt.show()
 
-XPloc = 0.0
+XPloc = 10.0
 OPD_ideal, OPD_actual, Werr, P_intersect_XP = calculate_wavefront_aberration(OPD, P_intersect, rayvec, XPloc, n_imag=1.0)
 
 f = 0
@@ -157,6 +157,6 @@ ax1.scatter(x,y,w)
 
 ax2 = fig.add_subplot(122, projection="3d")
 ax2.set_title("actual OPD")
-ax2.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], P_intersect_XP[2,:,f], 'o') #OPD_actual[:,f], marker='o')
+ax2.scatter(P_intersect[0,-3,:,f], P_intersect[1,-3,:,f], OPD_actual[:,f], marker='o') #P_intersect_XP[2,:,f], 'o') #
 plt.show()
 # =============================================================================================
