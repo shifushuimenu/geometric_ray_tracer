@@ -218,7 +218,7 @@ if True:
 
 # # horizontal incoming ray
 # fig = plot_ray(zdist, y_inf[:], fig, color="m", linewidth=1)
-fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, n, heights, fig)
+fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, n, heights, config, fig)
 
 for l in surface_segments[4]:
     print(l[0].set_color("g"))

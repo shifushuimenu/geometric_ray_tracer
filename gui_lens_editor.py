@@ -9,9 +9,9 @@ import numpy as np # IMPROVE: don't use numpy
 from datetime import datetime
 from typing import List, Iterable
 
-from interface import DisplayInterface
+from interface import DisplayInterface, DisplayInterfaceRayspot
 from lens import LensSequence
-from trace_ray import RayTracer, MeridionalRayData
+from trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData
 
 from config import Config
 from gui_config_options import ConfigOptionsEntry
@@ -36,9 +36,8 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QMessageBox,
     QLabel,
-    QLineEdit,
     QPushButton,
-    QComboBox,
+    QDoubleSpinBox,
 )
 
 from PyQt6.QtGui import QIcon, QAction
@@ -245,7 +244,7 @@ class LensEditor(QMainWindow):
             # Using the ray data, update the clear apertures in the lens editor.
             self.current_tab.update_clear_apertures(self.current_tab.table, self.ray_data.clear_apertures)            
 
-            self.display_interface = DisplayInterface(self.lens_sequence, self.ray_data, self.config)            
+            self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data)            
             self.raytraceWindow = RaytraceDiagram(self.display_interface, self.ray_data)
 
             self.raytraceWindow.show()
@@ -255,7 +254,18 @@ class LensEditor(QMainWindow):
 
     def showRaySpotDiagram(self):
         if self.raySpotDiagramWindow is None:
-            self.raySpotDiagramWindow = RaySpotDiagram()
+            self.current_tab = self.configTabs.tabs_widget.currentWidget()
+            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)        
+
+            if not hasattr(self, "ray_tracer"):
+                self.ray_tracer = RayTracer(self.lens_sequence)
+                self.ray_data = self.ray_tracer.calculate_meridional_ray_data(self.lens_sequence, self.config)
+
+            self.nonmeridional_ray_data = self.ray_tracer.calculate_nonmeridional_ray_data(self.lens_sequence, self.config)
+
+            self.display_interface = DisplayInterfaceRayspot(self.lens_sequence, self.config, self.nonmeridional_ray_data)
+
+            self.raySpotDiagramWindow = RaySpotDiagram(self.display_interface, self.nonmeridional_ray_data)
             self.raySpotDiagramWindow.show()
         else:
             self.raySpotDiagramWindow.close()
@@ -646,13 +656,43 @@ class RaytraceDiagram(QWidget):
 class RaySpotDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self):
+    def __init__(self, display_interface: DisplayInterfaceRayspot, ray_data: NonmeridionalRayData):
         super().__init__()
         self.setWindowTitle("Ray Spot Diagram")
-        self.label = QLabel("Ray Spot Diagram")
+        self.display_interface = display_interface
+        self.ray_data = ray_data
+
+        self.fig = self.display_interface.init_figure()
+        self.canvas = FigureCanvas(self.fig)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+
+        self.surf_input = QDoubleSpinBox()
+        self.surf_input.setPrefix("surface: ")
+        self.surf_input.setDecimals(0)
+        self.surf_input.setMinimum(0)
+        self.surf_input.setMaximum(self.ray_data.num_surfs-1)
+        self.surf_input.setValue(self.ray_data.num_surfs-1)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.label)
+        layout.addWidget(self.surf_input)
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)
         self.setLayout(layout)
+
+        # even handler
+        self.surf_input.valueChanged.connect(self.update_rayspot_diagram)
+
+        self.update_rayspot_diagram()
+
+    def update_rayspot_diagram(self):
+        if self.fig is not None:
+            for ax in self.fig.axes:
+                ax.clear()                
+        surf = int(self.surf_input.value())
+        self.fig = self.display_interface.plot_ray_spots(self.ray_data, surf=surf, fig=self.fig)
+        self.canvas.draw()
+        self.canvas.flush_events()
+
 
 class RayFanDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."

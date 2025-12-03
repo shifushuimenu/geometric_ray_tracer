@@ -2,8 +2,10 @@ from paraxial import ParaxialQuantities
 from lens import LensSequence
 from config import Config
 from matplotlib.figure import Figure
-from trace_ray import MeridionalRayData
-from plot import plot_spherical_surfaces, plot_ray_bundles, init_figure
+from trace_ray import MeridionalRayData, NonmeridionalRayData
+from plot import plot_spherical_surfaces, plot_ray_bundles
+
+import matplotlib as mpl
 
 # Put all plot parameters here: colors, linewidths
 params = {
@@ -13,12 +15,12 @@ params = {
 
 
 class DisplayInterface:
-    def __init__(self, lens_sequence: LensSequence, ray_data: MeridionalRayData, config: Config,
-                 paraxial_quantities: ParaxialQuantities = None):
-        self.PQ = paraxial_quantities 
+    def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: MeridionalRayData,
+                 paraxial_quantities: ParaxialQuantities = None):        
         self.LS = lens_sequence
+        self.config = config        
         self.RD = ray_data
-        self.config = config
+        self.PQ = paraxial_quantities 
 
         self.objects_on_screen = dict()
         self.highlighted_surface_i = None
@@ -81,3 +83,38 @@ class DisplayInterface:
         fig = plot_ray_bundles(ray_data, fig)
         return fig
     
+
+class DisplayInterfaceRayspot(object):
+    def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: NonmeridionalRayData):
+        self.lens_sequence = lens_sequence
+        self.config = config
+        self.RD = ray_data
+
+    def init_figure(self) -> Figure:
+        fig = Figure()
+        fig.set_size_inches(9,3)
+        fig.set_layout_engine("tight")
+        fig.subplots(1,self.config.num_fields, sharex=True, sharey=True)
+        return fig
+    
+    def plot_ray_spots(self, ray_data: NonmeridionalRayData, surf: int=-1, fig: Figure=None) -> Figure:
+        if fig is None:
+            fig = self.init_figure()
+        axs = fig.axes
+        P_intersect = ray_data.P_intersect
+        colors = ["blue", "green", "red"] if self.config.num_fields == 3 else mpl.color_sequences["tab10"][0:self.config.num_fields]
+        # Plot intersection points in the image plane.
+        # Plot off-axis ray bundles relative to the chief ray.
+        for f in range(self.config.num_fields):
+            axs[f].set_aspect("equal", adjustable="box")
+            axs[f].set_frame_on(True)
+            axs[f].grid(True)
+            axs[f].set_xlabel("mm")
+            axs[f].set_ylabel("mm")
+            axs[f].set_title(f"OBJ: {P_intersect[1,0,ray_data.CHIEF_RAY_INDEX,f]:.3f} mm \n"
+                             f"IMA: {P_intersect[1,surf,ray_data.CHIEF_RAY_INDEX,f]:.3f} mm")
+            y_CR = P_intersect[1,surf,ray_data.CHIEF_RAY_INDEX,f]
+            axs[f].plot(P_intersect[0,surf,:,f], P_intersect[1,surf,:,f] - y_CR, 'o', color=colors[f])
+        fig.tight_layout()
+        return fig
+

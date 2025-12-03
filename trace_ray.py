@@ -1,9 +1,15 @@
 import numpy as np
+from math import cos, sin
 from typing import Iterable, Tuple
 from utils import timer_func, RayIntersectionNotFoundError
 from lens import LensSequence
 from config import Config
 from utils import ChiefRayNotFoundError
+
+# REMOVE
+import matplotlib.pyplot as plt
+from nonmeridional_rays import raytrace_nonmeridional_rays
+# REMOVE
 
 # __all__ = ["trace_tangential_ray"]
 
@@ -20,6 +26,15 @@ class MeridionalRayData(object):
         self.vertex = vertex # z-position of the surface vertices
         self.clear_apertures = clear_apertures # the heights of the outermost rays, clear_apertures[0:num_surfs] 
         self.CHIEF_RAY_INDEX = self.num_rays//2
+
+class NonmeridionalRayData(object):
+    def __init__(self, num_surfs: int, num_rays: int, num_fields: int, P_intersect, rayvecs):
+        self.num_surfs = num_surfs
+        self.num_rays = num_rays
+        self.num_fields = num_fields
+        self.P_intersect = P_intersect
+        self.rayvecs = rayvecs
+        self.CHIEF_RAY_INDEX = 0
 
 
 class RayTracer(object):
@@ -83,6 +98,12 @@ class RayTracer(object):
         # 1. Determine the chief rays for all object heights.
         y_chief, u_chief, z_sag_chief = self.find_chief_rays(config.obj_heights)
 
+        # IMPROVE
+        print("u_chief=", u_chief[0,:])
+        # Chief ray launch angle is needed when calculatin nonmeridional ray data.
+        self.u_chief = u_chief
+        # IMPROVE
+
         # entrance pupil location (measured from the vertex of the first surface)
         self.EPL = config.obj_heights[0]/np.tan(u_chief[0,config.MAX_OBJ_HEIGHT_INDEX]) - lens_sequence.t[0]
         self.marginal_ray_angle = np.arctan((config.EPD/2.0)/(self.EPL+lens_sequence.t[0]))
@@ -97,6 +118,78 @@ class RayTracer(object):
         return  MeridionalRayData(num_surfs = y.shape[0], num_rays = y.shape[1], num_fields = y.shape[2], y=y, u=u, z_sag=z_sag,
                         vertex = lens_sequence.vertex, clear_apertures = clear_apertures)
 
+
+    def calculate_nonmeridional_ray_data(self, lens_sequence: LensSequence, config: Config) -> NonmeridionalRayData:
+        self.lens_sequence = lens_sequence
+
+        def _init_rayvecs_at_object(inclination_angles: Iterable[float], half_opening_angles: Iterable[float], 
+                                    num_concentrics: int=5, num_rays_per_1st_concentric: int=7):
+            """
+            Parameters
+            ----------
+            inclination_angles[0:num_fields]
+            half_opening_angles[0:num_fields]
+            num_concentrics
+            num_rays_per_1st_concentric
+
+            Returns
+            -------
+            P_intersect[0:3,0:num_surfs,0:num_nonmeridional_rays,0:num_fields] intersection points with each spherical surface,
+                with only the first surface initialized and intersection points for all other surfaces initialized to zero
+            rayvecs[0:3,0:num_surfs,0:num_nonmeridional_rays,0:num_fields] unit vector indicating the direction of propagation after the 
+                surface
+            """
+            # ====================================
+            # Launch a non-meridional ray fan
+            # ====================================
+            # The rotation angle gamma1 is around the x-axis (positive angle means downward inclination)
+            # and rotation angle gamma2 around the y-axis (positive angle means left-turning when looking in the direction of the ray).
+            gamma1_field = inclination_angles  # inclination angle (in radians) of the ray bundle. IMPROVE: gamma1_field depends on the launch angle of the chief ray for each field position
+            gamma2_max = half_opening_angles   # half opening angle of the ray bundle 
+            dg2 = gamma2_max/num_concentrics   # angular increment
+
+            # For every field position the number of non-meridional rays is the same.
+            num_rays_per_concentric = np.zeros(num_concentrics, dtype=int)
+            dg3 = np.zeros(num_concentrics)                
+            for c in range(num_concentrics):
+                if c==0:
+                    dg3[c] = 2*np.pi/num_rays_per_1st_concentric # angular increment in the azimuthal angle   
+                    num_rays_per_concentric[c] = num_rays_per_1st_concentric
+                else:
+                    dg3[c] = dg3[0] / (c+1)
+                    num_rays_per_concentric[c] = (c+1) * num_rays_per_1st_concentric
+            num_nonmeridional_rays = 1 + np.sum(num_rays_per_concentric[:]) # includes chief ray at the center of the ray bundle
+
+            # A ray bundle at field position f is a tuple (P_intersect[0:3,0:num_surfs,0:num_rays,f], rayvecs[0:3,0:num_surfs,0:num_rays,f]). 
+            # The chief ray is is labelled as the first ray: (P_intersect[0:3,0:num_surfs,0,f], rayvecs[0:3,0:num_surfs,0,f])
+            P_intersect = np.zeros((3,lens_sequence.num_surfs, num_nonmeridional_rays, config.num_fields))
+            rayvecs = np.zeros((3,lens_sequence.num_surfs, num_nonmeridional_rays, config.num_fields))
+
+            for f in range(config.num_fields):                    
+                r = 0 # chief ray
+                P_intersect[0:3, 0, r, f] = np.array([0, config.obj_heights[f], lens_sequence.vertex[0]]) # object oriented along y-axis
+                rayvecs[0:3, 0, r, f] = np.array([0, -sin(gamma1_field[f]), cos(gamma1_field[f])])
+                r = 1
+                for c in range(num_concentrics):
+                    gamma2 = (c+1) * dg2[f]
+                    for azi in range(num_rays_per_concentric[c]):
+                        gamma3 = dg3[c] * azi          
+                        P_intersect[0:3, 0, r, f] = np.array([0, config.obj_heights[f], lens_sequence.vertex[0]]) # object oriented along y-axis
+                        rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2)*cos(gamma3), 
+                                                         -cos(gamma1_field[f])*sin(gamma2)*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2), 
+                                                         -sin(gamma1_field[f])*sin(gamma2)*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2)])
+                        r += 1                         
+                assert r == num_nonmeridional_rays
+            
+            return P_intersect, rayvecs
+        
+        u_launch = self.u_chief[0,:]
+        half_opening_angles = np.ones_like(u_launch) * self.marginal_ray_angle
+        P_intersect, rayvecs = _init_rayvecs_at_object(u_launch, half_opening_angles)
+        P_intersect, rayvecs = raytrace_nonmeridional_rays(lens_sequence.vertex, lens_sequence.R, lens_sequence.n, P_intersect, rayvecs)        
+
+        return NonmeridionalRayData(num_surfs=rayvecs.shape[1], num_rays=rayvecs.shape[2], num_fields=rayvecs.shape[3], 
+                                    P_intersect=P_intersect, rayvecs=rayvecs)
 
 
 @timer_func
