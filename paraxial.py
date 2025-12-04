@@ -9,12 +9,45 @@ from typing import Tuple
 from lens import LensSequence
 from config import Config
 
-__all__ = ["ParaxialRaytracer"]
+__all__ = ["ParaxialRaytracer", "ParaxialQuantities"]
 
 
 class ParaxialQuantities(object):
-    def __init__(self):
-        pass
+    """
+    Paraxial quantities for finite conjugate system
+    
+    Given the object distance specified in the LensSequence, the back image 
+    distance (BID) is calculated to make object and image plane conjugate. Based on object
+    distance and BID the conjugate ABCD matrix is calculated. The original distance of the image 
+    plane in the LensSequence is not altered.
+    """
+    def __init__(self, EFL, BFL, FFL, V1H1, V2H2, EPP, EPD, XPP, XPD, 
+                 magnification, angular_magnification,
+                 stop_radius,
+                 BID, 
+                 y_chief, u_chief, y_marg, u_marg,
+                 ABCD_system, ABCD_conjugate
+                 ):
+        self.EFL = EFL
+        self.BFL = BFL
+        self.FFL = FFL
+        self.V1H1 = V1H1
+        self.V2H2 = V2H2
+        self.EPP = EPP
+        self.EPD = EPD
+        self.XPP = XPP
+        self.XPD = XPD
+        self.magnification = magnification
+        self.angular_magnification = angular_magnification
+        self.stop_radius = stop_radius
+        self.BID = BID
+        self.y_chief = y_chief
+        self.u_chief = u_chief
+        self.y_marg = y_marg
+        self.u_marg = u_marg
+        self.ABCD_system = ABCD_system
+        self.ABCD_conjugate = ABCD_conjugate
+
 
 class ParaxialRaytracer(object):
     """Paraxial (ynu) ray tracer using ABCD matrices
@@ -28,7 +61,7 @@ class ParaxialRaytracer(object):
         self.num_surfs = LS.num_surfs
         self.n = LS.n
         self.AS_surf = LS.AS_surf
-        self.zvertex = LS.vertex
+        self.vertex = LS.vertex
 
         self.ABCD_matrices = []
         self.ABCD_front_group = [] # all lens elements before the aperture stop
@@ -37,16 +70,16 @@ class ParaxialRaytracer(object):
         for i in range(1,LS.num_surfs-1):
             if i < LS.num_surfs-2:
                 # refracting surface followed by translation
-                self.ABCD_matrices.extend((self.Rmat(LS.phi[i]), self.Tmat(LS.t[i], LS.n[i])))
+                self.ABCD_matrices.extend((self._Rmat(LS.phi[i]), self._Tmat(LS.t[i], LS.n[i])))
             elif i == LS.num_surfs-2:
                 # The last refracting surface is NOT followed by translation.
-                self.ABCD_matrices.extend((self.Rmat(LS.phi[i]),))
+                self.ABCD_matrices.extend((self._Rmat(LS.phi[i]),))
             if i < self.AS_surf:
-                self.ABCD_front_group.extend((self.Rmat(LS.phi[i]), self.Tmat(LS.t[i], LS.n[i])))      
+                self.ABCD_front_group.extend((self._Rmat(LS.phi[i]), self._Tmat(LS.t[i], LS.n[i])))      
             elif i > self.AS_surf:
-                self.ABCD_rear_group.extend((self.Tmat(LS.t[i-1], LS.n[i-1]), self.Rmat(LS.phi[i])))
+                self.ABCD_rear_group.extend((self._Tmat(LS.t[i-1], LS.n[i-1]), self._Rmat(LS.phi[i])))
  
-        self.system_matrix = self.make_system_matrix(forward=True)
+        self.system_matrix = self._make_system_matrix(forward=True)
 
         self.rear_group_matrix = np.eye(2)
         for m in self.ABCD_rear_group:
@@ -57,14 +90,7 @@ class ParaxialRaytracer(object):
         for m in self.ABCD_front_group[::-1]:
             self.front_group_matrix = np.matmul(np.linalg.inv(m), self.front_group_matrix)
  
-    def trace_ray(self, y0: float, u0: float) -> Tuple[float, float]:
-        """ynu trace a ray through the system from the first to the last vertex"""
-        ynu = self.system_matrix @ np.array(y0, u0*self.n[0])
-        y1 = ynu[0]
-        u1 = ynu[1]/self.n[-2] # n[-1] would be the index of refraction *after* the image surface, which is not used.
-        return y1, u1
-
-    def make_system_matrix(self, forward=True):        
+    def _make_system_matrix(self, forward=True):        
         M = np.eye(2)
         if forward:
             for m in self.ABCD_matrices:
@@ -76,38 +102,87 @@ class ParaxialRaytracer(object):
             self.forward = False
         return M
     
-    def make_conjugate_matrix(self, object_dist, image_dist):
-        return self.Tmat(image_dist) @ self.system_matrix @ self.Tmat(-object_dist)
+    def _make_conjugate_matrix(self, object_dist, image_dist):
+        return self._Tmat(image_dist) @ self.system_matrix @ self._Tmat(-object_dist)
             
-    def Tmat(self, t, n=1.0):
+    def _Tmat(self, t, n=1.0):
         """Return ABCD translation matrix
         d - float:  distance to the right of the optical element"
         n - float:  index of refraction"""
         return np.array([[1.0, t/n],
                          [0.0, 1.0]], dtype=np.float64)
-    def Rmat(self, phi):
+    def _Rmat(self, phi):
         """Return ABCD refraction matrix
         phi = 1/f - float: refractive power"""
         return np.array([[1.0,  0.0],
                          [-phi, 1.0]], dtype=np.float64)
     
-    def Mmat(self, R, n=1.0):
+    def _Mmat(self, R, n=1.0):
         """Return ABCD mirror matrix"""
-        return self. Rmat(phi=-2.0*n/R)
+        return self. _Rmat(phi=-2.0*n/R)
+
+    def trace_ray_V1toV2(self, y0: float, u0: float) -> Tuple[float, float]:
+        """ynu trace a ray through the lens system from the first to the last vertex.
+        This excludes object and image distance."""
+        ynu = self.system_matrix @ np.array([y0, u0*self.n[0]])
+        y1 = ynu[0]
+        u1 = ynu[1]/self.n[-2] # n[-1] would be the index of refraction *after* the image surface, which is not used.
+        return y1, u1
     
+    def trace_ray_paraxially(self, y0, u0, start_surf, stop_surf, forward=True) -> Tuple[float, float]:
+        """
+        Trace a paraxial ray (y0, u0) from right before surface start_surf up to right after surface stop_surf
+        in forward direction, which requires stop_surf > start_surf. If forward=False, then the ray
+        is traced backward, which requires stop_surf < start_surf.
+        """
+        assert 1 <= start_surf < self.num_surfs -1, "Start and stop surfaces must not include object or image surface."
+        if forward: assert stop_surf > start_surf
+        if not forward: assert stop_surf < start_surf
+
+        ynu = np.zeros((self.num_surfs,2)) * np.nan
+        ynu[start_surf,:] = np.array([y0, u0*self.n[start_surf]])
+        if forward:
+            for s in range(start_surf, stop_surf):
+                i_refrac = (s-1)*2
+                i_transl = i_refrac+1 
+                if s < self.num_surfs - 2:
+                    # refraction followed by translation                                        
+                    ynu_ = self.ABCD_matrices[i_refrac] @ ynu[s]
+                    ynu[s+1] = self.ABCD_matrices[i_transl] @ ynu_
+                if s == self.num_surfs - 2:
+                    # one more refraction without translation at the last vertex
+                    ynu[s+1] = self.ABCD_matrices[i_refrac] @ ynu[s]
+        else:
+            for s in range(start_surf, stop_surf, -1):
+                i_refrac = (s-1)*2
+                # translation followed by refraction 
+                ynu_ = np.linalg.inv(self.ABCD_matrices[i_refrac-1]) @ ynu[s]
+                ynu[s-1] = np.linalg.inv(self.ABCD_matrices[i_refrac-2]) @ ynu_
+        return ynu
+
+
+    def _intersection_with_oA(self, y: float, u: float, z0: float) -> float:
+        """For a ray (y,u) located at z-position z0, calculate its intersection with the optical axis."""
+        z_int = z0 - y/u
+        return z_int
+
     def get_image_distance(self, object_dist):
         """The image distance as measured from the rightmost vertex V2 of the lens system."""
         assert object_dist < 0, "object distance should be a negative number"
         A = self.system_matrix[0,0]; B = self.system_matrix[0,1]
         C = self.system_matrix[1,0]; D = self.system_matrix[1,1]
         image_dist = (object_dist*A - B) / (D - object_dist*C)
-        self.conjugate_matrix = self.make_conjugate_matrix(object_dist, image_dist)
+        self.conjugate_matrix = self._make_conjugate_matrix(object_dist, image_dist)
         return image_dist
     
     def is_conjugate(self, N):
         """Check whether an ABCD matrix N defines conjugate planes."""
         return np.isclose(N[0,1], 0.0, atol=1e-8)
     
+    def get_BID(self):
+        """back image distance"""
+        return self.get_image_distance(self.vertex[0])
+
     def get_magnification(self):
         if self.is_conjugate(self.conjugate_matrix):
             return self.conjugate_matrix[0,0]
@@ -144,17 +219,21 @@ class ParaxialRaytracer(object):
         n2 = self.n[-1] # image space refractive index
         return (1.0-n2*self.system_matrix[0,0])/self.system_matrix[1,0]
 
-    def _intersection_with_oA(self, y: float, u: float, z0: float) -> float:
-        """For a ray (y,u) located at z-position z0, calculate its intersection with the optical axis."""
-        z_int = z0 - y/u
-        return z_int
-
-    def get_entrance_pupil(self):
+    def _get_entrance_pupil(self, EPD: int) -> Tuple[int, int]:
+        """
+        Assuming that the stop surface and the entrance pupil diameter are specified by the user,
+        determine the location of the entrance pupil and the stop radius.
+        """
         # IMPROVE: special cases
-        y_chief = 0; u_chief = +0.4
+        y_chief = 0; u_chief = +0.4 # The chief ray intersects the optical axis at the aperture stop and at all conjugate planes.
         ynu1 = np.matmul(self.front_group_matrix, np.array([y_chief, u_chief*self.n[self.AS_surf-1]]).T)
-        position_EP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[0], self.zvertex[1])
+        position_EP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[0], self.vertex[1])
         diameter_EP = 0
+
+        # Launch the marginal ray and determine its height at the aperture stop.
+        marginal_ray_angle = np.arctan((EPD/2.0)&(position_EP - self.vertex[0]))
+        self.trace_ray_paraxially(0.0, marginal_ray_angle)
+
         return position_EP, diameter_EP
 
     def get_exit_pupil(self):
@@ -165,7 +244,7 @@ class ParaxialRaytracer(object):
         ynu1 = np.matmul(self.rear_group_matrix, np.array([y_chief, u_chief*self.n[self.AS_surf]]).T)
         print("ynu1=", ynu1)
         # Richtiges Ergebnis, ich verstehe aber nicht, warum.
-        position_XP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[-2], self.zvertex[-2]) - self.zvertex[-1]
+        position_XP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[-2], self.vertex[-2]) - self.vertex[-1]
         print("position_XP=", position_XP)
         print(self.rear_group_matrix)
         # measured from the image plane 
@@ -173,6 +252,32 @@ class ParaxialRaytracer(object):
         diameter_XP = 0
         return position_XP, diameter_XP
 
+    def paraxial_quantities(self):
+        self.EFL=self.get_EFL()
+        self.BFL=self.get_BFL()
+        self.FFL=self.get_FFL()
+        self.V1H1=self.get_V1H1()
+        self.V2H2=self.get_V2H2(),
+        self.EPP,self.EPD=self._get_entrance_pupil()
+        self.XPP,self.XPD=self.get_exit_pupil()
+        self.magnification=self.get_magnification()
+        self.angular_magnification=self.get_angular_magnification(),
+        self.BID=self.get_BID()
+
+        # calculate marginal ray and chief ray in paraxial approximation
+
+        self.stop_radius=self.get_stop_radius()
+
+        return ParaxialQuantities(
+            EFL=self.EFL, BFL=self.BFL, FFL=self.FFL, V1H1=self.V1H1, V2H2=self.V2H2,
+            EPP=self.EPP, EPD=self.EPD,
+            XPP=self.XPP, XPD=self.XPD,
+            magnification=self.magnification, angular_magnification=self.angular_magnification,
+            stop_radius=self.stop_radius,
+            BID=self.BID,
+            ABCD_system=self.system_matrix,
+            ABCD_conjugate=self.conjugate_matrix
+        )
 
 class GaussianRaytracer(ParaxialRaytracer):
     """Propagate Gaussian beams specified by a complex parameter q using paraxial ray tracing."""
