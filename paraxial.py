@@ -9,6 +9,8 @@ from typing import Tuple
 from lens import LensSequence
 from config import Config
 
+import matplotlib.pyplot as plt
+
 __all__ = ["ParaxialRaytracer", "ParaxialQuantities"]
 
 
@@ -21,7 +23,7 @@ class ParaxialQuantities(object):
     distance and BID the conjugate ABCD matrix is calculated. The original distance of the image 
     plane in the LensSequence is not altered.
     """
-    def __init__(self, EFL, BFL, FFL, V1H1, V2H2, EPP, EPD, XPP, XPD, 
+    def __init__(self, EFL, BFL, FFL, V1H1, V2H2, EPP, EPD, EP_is_virtual, XPP, XPD, XP_is_virtual,
                  magnification, angular_magnification,
                  stop_radius,
                  BID, 
@@ -35,8 +37,10 @@ class ParaxialQuantities(object):
         self.V2H2 = V2H2
         self.EPP = EPP
         self.EPD = EPD
+        self.EP_is_virtual = EP_is_virtual
         self.XPP = XPP
         self.XPD = XPD
+        self.XP_is_virtual = XP_is_virtual
         self.magnification = magnification
         self.angular_magnification = angular_magnification
         self.stop_radius = stop_radius
@@ -140,7 +144,7 @@ class ParaxialRaytracer(object):
         if not forward: assert stop_surf < start_surf
 
         ynu = np.zeros((self.num_surfs,2)) * np.nan
-        ynu[start_surf,:] = np.array([y0, u0*self.n[start_surf]])
+        ynu[start_surf,:] = np.array([y0, u0*self.n[start_surf-1]]) # This is the ray vector *before* start_surf
         if forward:
             for s in range(start_surf, stop_surf):
                 i_refrac = (s-1)*2
@@ -152,6 +156,7 @@ class ParaxialRaytracer(object):
                 if s == self.num_surfs - 2:
                     # one more refraction without translation at the last vertex
                     ynu[s+1] = self.ABCD_matrices[i_refrac] @ ynu[s]
+                    ynu[s+1] = self._Tmat(self.vertex[-1]- self.vertex[-2], 1.0) @ ynu[s+1]
         else:
             for s in range(start_surf, stop_surf, -1):
                 i_refrac = (s-1)*2
@@ -165,6 +170,14 @@ class ParaxialRaytracer(object):
         """For a ray (y,u) located at z-position z0, calculate its intersection with the optical axis."""
         z_int = z0 - y/u
         return z_int
+    
+    def _intersection_line_segments(self, y1: float, u1: float, y2: float, u2: float, z0: float) -> Tuple[float, float]:
+        """
+        Intersection point between ray (y1,u1) and (y2,u2) launched at z-position z0.
+        """
+        z_int = z0 - (y1 -y2)/(np.tan(u1) - np.tan(u2))
+        y_int = y1 + np.tan(u1)*(z_int-z0)
+        return z_int, y_int
 
     def get_image_distance(self, object_dist):
         """The image distance as measured from the rightmost vertex V2 of the lens system."""
@@ -219,54 +232,68 @@ class ParaxialRaytracer(object):
         n2 = self.n[-1] # image space refractive index
         return (1.0-n2*self.system_matrix[0,0])/self.system_matrix[1,0]
 
-    def _get_entrance_pupil(self, EPD: int) -> Tuple[int, int]:
+    def _get_entrance_and_exit_pupil(self, EPD: int) -> Tuple[int, int]:
         """
         Assuming that the stop surface and the entrance pupil diameter are specified by the user,
-        determine the location of the entrance pupil and the stop radius.
+        determine the location of the entrance and exit pupil, the stop radius and the diameter
+        of the exit pupil.
+
+        The position of the entrance pupil is measured relative to the first lens vertex.
+        The position of the exit pupil is measured relative to the *image surface*.
         """
-        # IMPROVE: special cases
-        y_chief = 0; u_chief = +0.4 # The chief ray intersects the optical axis at the aperture stop and at all conjugate planes.
+        # The chief ray intersects the optical axis at the aperture stop and at all conjugate planes,
+        # which are the pupil planes.
+        y_chief = 0; u_chief = +0.4 # angle is arbitrary
         ynu1 = np.matmul(self.front_group_matrix, np.array([y_chief, u_chief*self.n[self.AS_surf-1]]).T)
+        # The position of the entrance pupil is measured with respect to the front vertex.
         position_EP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[0], self.vertex[1])
-        diameter_EP = 0
+        if position_EP > self.vertex[0]:
+            EP_is_virtual = True
+        else:
+            EP_is_virtual = False
 
         # Launch the marginal ray and determine its height at the aperture stop.
-        marginal_ray_angle = np.arctan((EPD/2.0)&(position_EP - self.vertex[0]))
-        self.trace_ray_paraxially(0.0, marginal_ray_angle)
+        marginal_ray_angle = np.arctan((EPD/2.0)/(position_EP - self.vertex[0])) 
+        # assert ((marginal_ray_angle > 0) and EP_is_virtual)
+        ynu2 = np.matmul(np.linalg.inv(self.front_group_matrix), np.array([np.tan(marginal_ray_angle)*np.abs(self.vertex[0]), marginal_ray_angle*self.n[0]]).T)
+        stop_radius = ynu2[0]
 
-        return position_EP, diameter_EP
+        # ynu_marginal = self.trace_ray_paraxially(np.tan(marginal_ray_angle)*np.abs(self.vertex[0]), marginal_ray_angle, 1, self.AS_surf, True)
+        # print("ynu_marginal[:,0]=", ynu_marginal[:,0])
 
-    def get_exit_pupil(self):
         # Trace a ray from the center of the aperture stop through the rear group of the lens system.
         # The z-position where the ray leaving the rear group intersects the optical axis is the position of the exit 
-        # pupil
-        y_chief = 0.0; u_chief = -0.1 # angle is arbitrary
+        # pupil.
+        y_chief = 0.0; u_chief = -0.4 # angle is arbitrary
         ynu1 = np.matmul(self.rear_group_matrix, np.array([y_chief, u_chief*self.n[self.AS_surf]]).T)
-        print("ynu1=", ynu1)
-        # Richtiges Ergebnis, ich verstehe aber nicht, warum.
+        # position_XP is measured relative to the image surface (i.e. the last surface of the LensSequence)
         position_XP = self._intersection_with_oA(ynu1[0], ynu1[1]/self.n[-2], self.vertex[-2]) - self.vertex[-1]
-        print("position_XP=", position_XP)
-        print(self.rear_group_matrix)
-        # measured from the image plane 
-        # position_XP = position_XP - self.zvertex[-1]
-        diameter_XP = 0
-        return position_XP, diameter_XP
+        if position_XP > 0: # measured relative to the image surface
+            XP_is_virtual = False
+        else:
+            XP_is_virtual = True
 
-    def paraxial_quantities(self):
+        y_marg = stop_radius; u_marg = 0.0 # ray from the edge of the aperture stop, its image at the exit pupil plane gives the radius of the exit pupil
+        ynu2 = np.matmul(self.rear_group_matrix, np.array([y_marg, u_marg*self.n[self.AS_surf]]).T)
+        diameter_XP = 2.0*(ynu2[0] + np.tan((ynu2[1]/(self.n[-2])))*(position_XP + (self.vertex[-1]-self.vertex[-2])))
+
+        print("position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual")
+        print(position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual)
+
+        return position_EP, EPD, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual
+
+
+    def paraxial_quantities(self, config: Config):
         self.EFL=self.get_EFL()
         self.BFL=self.get_BFL()
         self.FFL=self.get_FFL()
         self.V1H1=self.get_V1H1()
         self.V2H2=self.get_V2H2(),
-        self.EPP,self.EPD=self._get_entrance_pupil()
-        self.XPP,self.XPD=self.get_exit_pupil()
+        self.EPP, self.EPD, self.marginal_ray_angle, self.stop_radius, self.XPP, self.XPD, self.EP_is_virtual, self.XP_is_virtual=self._get_entrance_and_exit_pupil(config.EPD)
         self.magnification=self.get_magnification()
         self.angular_magnification=self.get_angular_magnification(),
         self.BID=self.get_BID()
 
-        # calculate marginal ray and chief ray in paraxial approximation
-
-        self.stop_radius=self.get_stop_radius()
 
         return ParaxialQuantities(
             EFL=self.EFL, BFL=self.BFL, FFL=self.FFL, V1H1=self.V1H1, V2H2=self.V2H2,
