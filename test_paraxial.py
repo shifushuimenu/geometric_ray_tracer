@@ -13,6 +13,7 @@ class Test1(unittest.TestCase):
    def setUp(self):
     #    self.lens_sequence = read_lens("lens_files/test_doublet_realXP_v2.txt", SAG=False, lens_unit="mm")
        self.lens_sequence = read_lens("lens_files/lens_Kidger2004_modified.txt", SAG=False, lens_unit="mm")
+    #    self.lens_sequence = read_lens("lens_files/stepper_lens.txt", SAG=False, lens_unit="mm")
        self.PR = ParaxialRaytracer(self.lens_sequence)
        self.raytracer = RayTracer(self.lens_sequence)
 
@@ -22,15 +23,37 @@ class Test1(unittest.TestCase):
    def test_ABCD_system_matrix(self):
        print("ABCD=", self.PR._make_system_matrix())
 
-   def test_raytrace(self):
-    #    y, u, z_sag, _ = self.raytracer.trace_tangential_ray(0.0, 0.2)
-    #    print("shape=", self.PR.ABCD_matrices[0].shape)
-    #    ynu = self.PR.trace_ray_paraxially(y[1], u[1], 1, self.lens_sequence.AS_surf, True)
-       fig = plot_paraxial_surfaces(self.PR.vertex)
-    #    fig.axes[0].plot(self.PR.vertex, ynu[:,0])
-    #    fig.axes[0].plot(self.PR.vertex+z_sag, y, '--')
+#    def test_find_chief_ray(self):
+#        ynu = self.PR.find_chief_ray(obj_height=1.0)
+#        fig = plot_paraxial_surfaces(self.PR.vertex)
+#        fig.axes[0].plot(self.PR.vertex, ynu[:,0])
+#        plt.show()
 
-    #    # from the aperture stop till the last surface
+
+   def test_trace_ray_paraxially(self):
+       y, theta, z_sag, _ = self.raytracer.trace_tangential_ray(0.0, 0.1)
+       ynu = self.PR.trace_ray_paraxially(y[3], theta[2], 3, self.lens_sequence.num_surfs-2, forward=True)
+       ynu_reverse = self.PR.trace_ray_paraxially(ynu[self.lens_sequence.num_surfs-2,0], ynu[self.lens_sequence.num_surfs-2,1]/self.lens_sequence.n[self.lens_sequence.num_surfs-2], self.lens_sequence.num_surfs-2, 1, forward=False)
+       
+       fig = plot_paraxial_surfaces(self.PR.vertex)
+       fig.axes[0].plot(self.PR.vertex, ynu[:,0], label="paraxial, forward")
+       fig.axes[0].plot(self.PR.vertex, ynu_reverse[:,0], 'o', label="paraxial, reverse")
+       fig.axes[0].plot(self.PR.vertex+z_sag, y, '--', label="non-paraxial")
+
+       plt.legend()
+       plt.show()
+
+       plt.plot(self.PR.vertex, theta, label=r"$\theta$")
+       plt.plot(self.PR.vertex, ynu[:,1], label=r"$u$")
+       plt.legend()
+       plt.show()
+
+       for i in range(len(ynu)):
+           print("i=", i, " : ", ynu[i,:], " == ", ynu_reverse[i,:], f"non-paraxial: y={y[i]}, theta={theta[i]}")
+
+       assert np.isclose(ynu[np.where(np.invert(np.isnan(ynu)))], ynu_reverse[np.where(np.invert(np.isnan(ynu_reverse)))]).all()
+
+    #    # from the aperture stop till the last surface 
     #    start_surf = self.lens_sequence.AS_surf
     #    stop_surf = self.lens_sequence.num_surfs-2
     #    ynu = self.PR.trace_ray_paraxially(ynu[start_surf,0], ynu[start_surf,1], start_surf, stop_surf, True)
@@ -40,10 +63,10 @@ class Test1(unittest.TestCase):
     #    ynu_chief_forward = self.PR.trace_ray_paraxially(0.0, 0.1, self.lens_sequence.AS_surf, self.lens_sequence.num_surfs, True)
     #    fig.axes[0].plot(self.PR.vertex, ynu_chief_forward[:,0], '-', color="blue")
 
-       EPD = 2.0
+    #    EPD = 2.0
 
-       EPP, marginal_ray_angle, stop_radius, XPP, XPD, EP_is_virtual, XP_is_virtual = self.PR._get_entrance_and_exit_pupil(EPD=EPD)
-       print("EPP=", EPP, "stop_radius=", stop_radius, "XPP=", XPP, "XPD=", XPD)
+    #    EPP, marginal_ray_angle, stop_radius, XPP, XPD, EP_is_virtual, XP_is_virtual = self.PR._get_entrance_and_exit_pupil(EPD=EPD)
+    #    print("EPP=", EPP, "stop_radius=", stop_radius, "XPP=", XPP, "XPD=", XPD)
 
     #    ynu1_marginal_forward = self.PR.trace_ray_paraxially(stop_radius, 0.1, self.lens_sequence.AS_surf, self.lens_sequence.num_surfs, True)
     #    ynu2_marginal_forward = self.PR.trace_ray_paraxially(stop_radius, 0.0, self.lens_sequence.AS_surf, self.lens_sequence.num_surfs, True)
