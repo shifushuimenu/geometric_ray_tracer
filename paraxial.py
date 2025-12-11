@@ -83,7 +83,8 @@ class ParaxialRaytracer(object):
                 # The last refracting surface is NOT followed by translation.
                 self.ABCD_matrices.extend((self._Rmat(LS.phi[i]),))
             if i < self.AS_surf:
-                self.ABCD_front_group.extend((self._Rmat(LS.phi[i]), self._Tmat(LS.t[i], LS.n[i])))      
+                self.ABCD_front_group.extend((self._Rmat(LS.phi[i]), self._Tmat(LS.t[i], LS.n[i])))
+            # Note: The refraction through the aperture stop is omitted: It is contained neither in the front group nor the rear group.
             elif i > self.AS_surf:
                 self.ABCD_rear_group.extend((self._Tmat(LS.t[i-1], LS.n[i-1]), self._Rmat(LS.phi[i])))
  
@@ -185,7 +186,12 @@ class ParaxialRaytracer(object):
             i_refrac = (start_surf-1)*2
             ynu[start_surf] = self.ABCD_matrices[i_refrac] @ ynu_tmp # refract through start_surf
             # For consistency with ray tracing in the reverse direction, calculate also at start_surf-1.
-            ynu[start_surf-1] = np.linalg.inv(self.ABCD_matrices[i_refrac-1]) @ ynu_tmp
+            if start_surf > 1:
+                ynu[start_surf-1] = np.linalg.inv(self.ABCD_matrices[i_refrac-1]) @ ynu_tmp
+            else:
+                # start_surf == 1:
+                # The translation from object to first vertex is not part of list self.ABCD_matrices.
+                ynu[0,:] = np.linalg.inv(self._Tmat(self.t[0], self.n[0])) @ ynu_tmp
             for s in range(start_surf, stop_surf):
                 i_refrac = (s-1)*2
                 i_transl = i_refrac+1 
@@ -196,21 +202,24 @@ class ParaxialRaytracer(object):
             if not skip_start_surf:
                 i_refrac = (start_surf-1)*2
                 ynu_tmp = np.linalg.inv(self.ABCD_matrices[i_refrac]) @ ynu[start_surf]
-            for s in range(start_surf-1, stop_surf, -1):
+            else:
+                ynu_tmp = np.array([y0, u0*self.n[start_surf-1]])
+            for s in range(start_surf-1, stop_surf-1, -1):
                 i_transl = (s-1)*2+1
                 # translation followed by refraction
                 ynu[s] = np.linalg.inv(self.ABCD_matrices[i_transl]) @ ynu_tmp
                 ynu_tmp = np.linalg.inv(self.ABCD_matrices[i_transl-1]) @ ynu[s]
+            ynu[stop_surf,:] = ynu_tmp
 
         return ynu
-
 
     def _trace_ray_paraxially_front_group_to_object(self, y0: float, u0: float) -> Tuple[float, float]:
         """Trace a ray (y0,u0) from the aperture stop till the object plane."""
         # from aperture stop till right before first vertex
-        ynu = np.matmul(self.front_group_matrix, np.array([y0, u0*self.n[self.AS_surf-1]]).T)        
+        ynu = np.matmul(self.front_group_matrix, np.array([y0, u0*self.n[self.AS_surf-1]]).T)
         # from first vertex till object plane
-        ynu_object = np.matmul(self._Tmat(self.t[0], self.n[0]), ynu)
+        print("ynu before object=", ynu)
+        ynu_object = np.matmul(np.linalg.inv(self._Tmat(self.t[0], self.n[0])), ynu)
         return ynu_object[0], ynu_object[1]/self.n[0]
 
     def _intersection_with_oA(self, y: float, u: float, z0: float) -> float:
@@ -279,7 +288,7 @@ class ParaxialRaytracer(object):
         n2 = self.n[-1] # image space refractive index
         return (1.0-n2*self.system_matrix[0,0])/self.system_matrix[1,0]
 
-    def _get_entrance_and_exit_pupil(self, EPD: int) -> Tuple[int, int]:
+    def _get_entrance_and_exit_pupil(self, EPD: int) -> Tuple[float, float, float, float, float, float, bool, bool]:
         """
         Assuming that the stop surface and the entrance pupil diameter are specified by the user,
         determine the location of the entrance and exit pupil, the stop radius and the diameter
@@ -339,7 +348,17 @@ class ParaxialRaytracer(object):
         INTERSECTION_FOUND = False
         while (not INTERSECTION_FOUND):
             u_launch_AS = 0.5*(u_min + u_max) # launch angle at the aperture stop
-            y, u = self._trace_ray_paraxially_front_group_to_object(0.0, u_launch_AS)
+
+            y, u = self._trace_ray_paraxially_front_group_to_object(0.0, -u_launch_AS)
+            # # REMOVE
+            # ynu_reverse = self.trace_ray_paraxially(0.0, -u_launch_AS, start_surf=self.AS_surf, stop_surf=1, forward=False, skip_start_surf=True)
+            # ynu_tmp = np.linalg.inv(self._Tmat(self.t[0], self.n[0])) @ ynu_reverse[1,:]
+            # y_ = ynu_tmp[0]
+            # u_ = ynu_tmp[1]/self.n[0]
+            # print(">>>>>  y=", y, "y_=", y_)
+            # # y = y_
+            # # u = u_
+            # # REMOVE
             assert y > 0
             if y < obj_height:
                 u_min = u_launch_AS
@@ -347,28 +366,29 @@ class ParaxialRaytracer(object):
                 u_max = u_launch_AS
             if np.isclose(y, obj_height, atol=eps):
                 INTERSECTION_FOUND = True
-                u_launch = -u # launch angle at object
+                u_launch = u # launch angle at object
                 print(f"launch angle found: y={y}, u_launch={u_launch}")
 
-        ynu_reverse = self.trace_ray_paraxially(0.0, -u_launch_AS, start_surf=self.AS_surf, stop_surf=1, forward=False)
-        # from first vertex to image
-        print("ynu_reverse[1,:]=", ynu_reverse[1,:])
-        ynu_tmp = self._Tmat(self.t[0], self.n[0]) @ ynu_reverse[1,:]
-        ynu_reverse[0,:] = ynu_tmp
+        # calculate chief ray trajectory from aperture stop to object plane
+        # 1. from AS to right before first vertex
+        ynu_reverse = self.trace_ray_paraxially(0.0, -u_launch_AS, start_surf=self.AS_surf, stop_surf=1, forward=False, skip_start_surf=True)
+        # 2. from right before first vertex to object plane
+        ynu_reverse[0,:] = np.linalg.inv(self._Tmat(self.t[0], self.n[0])) @ ynu_reverse[1,:]
         return ynu_reverse
 
-        # trace a ray from the object to the image plane
+        # # trace a ray from the object to the image plane
         ynu_object = np.array([obj_height, u_launch*self.n[0]])
-        # 1. from object to first vertex 
-        ynu1 = self._Tmat(self.t[0], self.n[0]) @ ynu_object
-        # 2. from right before first vertex till right after last vertex 
-        ynu_chief = self.trace_ray_paraxially(ynu1[0], ynu1[1]/self.n[0], start_surf=1, stop_surf=self.num_surfs-2)
+        # # 1. from object to first vertex 
+        # ynu1 = self._Tmat(self.t[0], self.n[0]) @ ynu_object
+        # # 2. from right before first vertex till right after last vertex 
+        ynu_chief = self.trace_ray_paraxially(ynu_reverse[1,0], ynu_reverse[0,1]/self.n[0], 1, self.num_surfs-2, forward=True)
         ynu_chief[0,:] = ynu_object # overwrite
         # 3. from right after last vertex till image plane
         ynu_image = self._Tmat(self.t[self.num_surfs-2], self.n[self.num_surfs-2]) @ ynu_chief[self.num_surfs-2,:]
         ynu_chief[self.num_surfs-1,:] = ynu_image
 
-        assert np.isclose(ynu_chief[self.AS_surf, 0], 0.0, atol=10*eps)
+        print("ynu_chief[self.AS_surf, 0]=", ynu_chief[self.AS_surf, 0])
+        # assert np.isclose(ynu_chief[self.AS_surf, 0], 0.0, atol=10*eps)
 
         return ynu_chief
 
