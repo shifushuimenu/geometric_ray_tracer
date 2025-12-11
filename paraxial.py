@@ -26,6 +26,7 @@ class ParaxialQuantities(object):
     def __init__(self, EFL, BFL, FFL, V1H1, V2H2, 
                  EPP, EPD, EP_is_virtual, marginal_ray_angle,
                  XPP, XPD, XP_is_virtual,
+                 object_dist, image_dist,
                  magnification, angular_magnification,
                  stop_radius,
                  BID, 
@@ -44,6 +45,8 @@ class ParaxialQuantities(object):
         self.XPP = XPP
         self.XPD = XPD
         self.XP_is_virtual = XP_is_virtual
+        self.object_dist = object_dist
+        self.image_dist = image_dist
         self.magnification = magnification
         self.angular_magnification = angular_magnification
         self.stop_radius = stop_radius
@@ -138,6 +141,20 @@ class ParaxialRaytracer(object):
         u1 = ynu[1]/self.n[-2] # n[-1] would be the index of refraction *after* the image surface, which is not used.
         return y1, u1
     
+    def trace_ray_paraxially_object_to_image(self, y0: float, u0: float, forward: bool=True) -> np.ndarray:
+        ynu = np.zeros((self.num_surfs, 2))
+        ynu[0,:] = np.array([y0, u0*self.n[0]])
+        if forward:
+            # 1. object plane to right before first vertex
+            ynu_before_V1 = self._Tmat(self.t[0], self.n[0]) @ ynu[0,:]
+            # 2. right before first vertex to right after last vertex
+            ynu[1:self.num_surfs-1,:] = self.trace_ray_paraxially(ynu_before_V1[0], ynu_before_V1[1]/self.n[0], start_surf=1, stop_surf=self.num_surfs-2, forward=True)[1:self.num_surfs-1,:]
+            # 3. right after last vertex to image plane
+            ynu[self.num_surfs-1,:] = self._Tmat(self.t[self.num_surfs-2], self.n[self.num_surfs-2]) @ ynu[self.num_surfs-2,:]
+        else:
+            raise NotImplementedError
+        return ynu
+
     def trace_ray_paraxially(self, y0: float, u0: float, start_surf: int, stop_surf: int, forward: bool=True, skip_start_surf=False) -> np.ndarray:
         """
         Trace a paraxial ray (y0, u0) from *right before* surface start_surf up to *right after* surface stop_surf
@@ -218,7 +235,6 @@ class ParaxialRaytracer(object):
         # from aperture stop till right before first vertex
         ynu = np.matmul(self.front_group_matrix, np.array([y0, u0*self.n[self.AS_surf-1]]).T)
         # from first vertex till object plane
-        print("ynu before object=", ynu)
         ynu_object = np.matmul(np.linalg.inv(self._Tmat(self.t[0], self.n[0])), ynu)
         return ynu_object[0], ynu_object[1]/self.n[0]
 
@@ -316,13 +332,8 @@ class ParaxialRaytracer(object):
 
         # Launch the marginal ray and determine its height at the aperture stop.
         marginal_ray_angle = np.arctan((EPD/2.0)/(position_EP - self.vertex[0]))
-        print("marginal ray angle=", marginal_ray_angle)
-        # assert ((marginal_ray_angle > 0) and EP_is_virtual)
         ynu2 = np.matmul(np.linalg.inv(self.front_group_matrix), np.array([np.tan(marginal_ray_angle)*np.abs(self.vertex[0]), marginal_ray_angle*self.n[0]]).T)
         stop_radius = ynu2[0]
-
-        # ynu_marginal = self.trace_ray_paraxially(np.tan(marginal_ray_angle)*np.abs(self.vertex[0]), marginal_ray_angle, 1, self.AS_surf, True)
-        # print("ynu_marginal[:,0]=", ynu_marginal[:,0])
 
         # Trace a ray from the center of the aperture stop through the rear group of the lens system.
         # The z-position where the ray leaving the rear group intersects the optical axis is the position of the exit 
@@ -339,9 +350,6 @@ class ParaxialRaytracer(object):
         y_marg = stop_radius; u_marg = 0.0 # ray from the edge of the aperture stop, its image at the exit pupil plane gives the radius of the exit pupil
         ynu2 = np.matmul(self.rear_group_matrix, np.array([y_marg, u_marg*self.n[self.AS_surf]]).T)
         diameter_XP = 2.0*(ynu2[0] + (ynu2[1]/(self.n[-2]))*(position_XP + (self.vertex[-1]-self.vertex[-2])))
-
-        print("position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual")
-        print(position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual)
 
         return position_EP, EPD, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual
 
@@ -384,14 +392,22 @@ class ParaxialRaytracer(object):
         ynu_image = self._Tmat(self.t[self.num_surfs-2], self.n[self.num_surfs-2]) @ ynu_chief[self.num_surfs-2,:]
         ynu_chief[self.num_surfs-1,:] = ynu_image # overwrite
 
-        # print("ynu_chief[self.AS_surf, 0]=", ynu_chief[self.AS_surf, 0])
-        # assert np.isclose(ynu_chief[self.AS_surf, 0], 0.0, atol=10*eps)
-
-        return ynu_chief
+        return ynu_chief[:,0], ynu_chief[:,1]/self.n[:]
 
 
-    def find_marginal_ray(self, stop_radius):
-        pass
+    def marginal_ray_from_EPD(self, EPD: float) -> Tuple[np.ndarray, np.ndarray]:
+        
+        if not hasattr(self, "marginal_ray_angle"):
+            self.EPP, self.EPD, self.marginal_ray_angle, self.stop_radius, self.XPP, self.XPD, self.EP_is_virtual, self.XP_is_virtual=self._get_entrance_and_exit_pupil(EPD)
+        y0 = 0.0; u0 = self.marginal_ray_angle
+        
+        ynu = self.trace_ray_paraxially_object_to_image(y0, u0, forward=True)
+        return ynu[:,0], ynu[:,1]/self.n[:] 
+
+
+    def marginal_ray_from_stop_radius(self, stop_radius: float) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError
+
 
     def paraxial_quantities(self, config: Config):
         self.EFL=self.get_EFL()
@@ -400,17 +416,20 @@ class ParaxialRaytracer(object):
         self.V1H1=self.get_V1H1()
         self.V2H2=self.get_V2H2(),
         self.EPP, self.EPD, self.marginal_ray_angle, self.stop_radius, self.XPP, self.XPD, self.EP_is_virtual, self.XP_is_virtual=self._get_entrance_and_exit_pupil(config.EPD)
+        self.object_dist = self.vertex[0]
+        self.image_dist = self.get_image_distance(self.object_dist)
         self.magnification=self.get_magnification()
         self.angular_magnification=self.get_angular_magnification(),
         self.BID=self.get_BID()
         self.y_chief, self.u_chief = self.find_chief_ray(config.max_obj_height)
-        self.y_marg, self.u_marg = self.find_marginal_ray(self.stop_radius)
-
+        self.y_marg, self.u_marg = self.marginal_ray_from_EPD(self.EPD)
 
         return ParaxialQuantities(
             EFL=self.EFL, BFL=self.BFL, FFL=self.FFL, V1H1=self.V1H1, V2H2=self.V2H2,
             EPP=self.EPP, EPD=self.EPD, EP_is_virtual=self.EP_is_virtual, marginal_ray_angle=self.marginal_ray_angle,
             XPP=self.XPP, XPD=self.XPD, XP_is_virtual=self.XP_is_virtual,
+            object_dist=self.object_dist,
+            image_dist=self.image_dist,
             magnification=self.magnification, angular_magnification=self.angular_magnification,
             stop_radius=self.stop_radius,
             BID=self.BID,
@@ -421,6 +440,7 @@ class ParaxialRaytracer(object):
             ABCD_system=self.system_matrix,
             ABCD_conjugate=self.conjugate_matrix
         )
+
 
 class GaussianRaytracer(ParaxialRaytracer):
     """Propagate Gaussian beams specified by a complex parameter q using paraxial ray tracing."""
