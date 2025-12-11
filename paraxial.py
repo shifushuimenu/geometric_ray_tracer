@@ -179,7 +179,7 @@ class ParaxialRaytracer(object):
         if skip_start_surf: assert not forward
 
         ynu = np.zeros((self.num_surfs,2)) * np.nan # Nan values are not shown by plt.plot().
-        
+
         if forward:
             ynu_tmp = np.array([y0, u0*self.n[start_surf-1]]) # This is the ray vector *right before* start_surf
             i_refrac = (start_surf-1)*2

@@ -30,28 +30,37 @@ class Test1(unittest.TestCase):
 #        plt.show()
 
 
-   def test_trace_ray_paraxially(self):
-       y, theta, z_sag, _ = self.raytracer.trace_tangential_ray(0.0, 0.1)
+   def test_trace_ray_paraxially(self, plot=False):
+       """Check that for small angles the paraxial and non-paraxial ray tracing routines give the same trajectories."""
+       y, theta, z_sag, _ = self.raytracer.trace_tangential_ray(0.0, 0.01)
        ynu = self.PR.trace_ray_paraxially(y[3], theta[2], 3, self.lens_sequence.num_surfs-2, forward=True)
-       ynu_reverse = self.PR.trace_ray_paraxially(ynu[self.lens_sequence.num_surfs-2,0], ynu[self.lens_sequence.num_surfs-2,1]/self.lens_sequence.n[self.lens_sequence.num_surfs-2], self.lens_sequence.num_surfs-2, 1, forward=False)
+       ynu_reverse = self.PR.trace_ray_paraxially(ynu[self.lens_sequence.num_surfs-2,0], 
+                                                  ynu[self.lens_sequence.num_surfs-2,1]/self.lens_sequence.n[self.lens_sequence.num_surfs-2], 
+                                                  self.lens_sequence.num_surfs-2, 1, forward=False)
        
-       fig = plot_paraxial_surfaces(self.PR.vertex)
-       fig.axes[0].plot(self.PR.vertex, ynu[:,0], label="paraxial, forward")
-       fig.axes[0].plot(self.PR.vertex, ynu_reverse[:,0], 'o', label="paraxial, reverse")
-       fig.axes[0].plot(self.PR.vertex+z_sag, y, '--', label="non-paraxial")
+       if plot:
+            fig = plot_paraxial_surfaces(self.PR.vertex)
+            fig.axes[0].plot(self.PR.vertex, ynu[:,0], label="paraxial, forward")
+            fig.axes[0].plot(self.PR.vertex, ynu_reverse[:,0], 'o', label="paraxial, reverse")
+            fig.axes[0].plot(self.PR.vertex+z_sag, y, '--', label="non-paraxial")
 
-       plt.legend()
-       plt.show()
+            plt.legend()
+            plt.show()
 
-       plt.plot(self.PR.vertex, theta, label=r"$\theta$")
-       plt.plot(self.PR.vertex, ynu[:,1], label=r"$u$")
-       plt.legend()
-       plt.show()
+            plt.plot(self.PR.vertex, theta*self.PR.n, label=r"$\theta \cdot n$")
+            plt.plot(self.PR.vertex, ynu[:,1], label=r"$u$")
+            plt.plot(self.PR.vertex, ynu_reverse[:,1], label=r"$u$ reverse")
+            plt.legend()
+            plt.show()
 
        for i in range(len(ynu)):
-           print("i=", i, " : ", ynu[i,:], " == ", ynu_reverse[i,:], f"non-paraxial: y={y[i]}, theta={theta[i]}")
+           print("i=", i, " : ", ynu[i,:], " == ", ynu_reverse[i,:], f"non-paraxial: y={y[i]}, theta*n={theta[i]*self.PR.n[i]}")
 
        assert np.isclose(ynu[np.where(np.invert(np.isnan(ynu)))], ynu_reverse[np.where(np.invert(np.isnan(ynu_reverse)))]).all()
+       assert np.isclose(ynu[:,0][np.where(np.invert(np.isnan(ynu[:,0])))], y[np.where(np.invert(np.isnan(ynu[:,0])))], atol=1e-3).all()
+       assert np.isclose(ynu[:,1][np.where(np.invert(np.isnan(ynu[:,1])))], (theta*self.PR.n)[np.where(np.invert(np.isnan(ynu[:,1])))], atol=1e-2).all()
+
+    def test_
 
     #    # from the aperture stop till the last surface 
     #    start_surf = self.lens_sequence.AS_surf

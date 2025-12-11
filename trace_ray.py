@@ -397,8 +397,13 @@ def find_chief_rays(lens_sequence: LensSequence, obj_heights: Iterable,
                 print(f"u_middle = {u_middle}")
                 print(f"y_cr[0,{f}] > obj_height[{f}]")
                 u_max = u_middle
+
         y_cr[0:lens_sequence.AS_surf+1, f] = y[0:lens_sequence.AS_surf+1]
         u_cr[0:lens_sequence.AS_surf+1, f] = u[0:lens_sequence.AS_surf+1]
         z_sag_cr[0:lens_sequence.AS_surf+1, f] = z_sag[0:lens_sequence.AS_surf+1]
+        # IMPROVE
+        u_cr[lens_sequence.AS_surf, f] = u_middle
+        y_cr[lens_sequence.AS_surf, f] = 0.0 
+        z_sag_cr[lens_sequence.AS_surf, f] = 0.0
 
     return y_cr, u_cr, z_sag_cr
