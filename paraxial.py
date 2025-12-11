@@ -230,9 +230,15 @@ class ParaxialRaytracer(object):
     def _intersection_line_segments(self, y1: float, u1: float, y2: float, u2: float, z0: float) -> Tuple[float, float]:
         """
         Intersection point between ray (y1,u1) and (y2,u2) launched at z-position z0.
+
+        Parameters
+        ----------
+        y1, y2 - float: ray heights
+        u1, u2 - float: paraxial ray angles
+        z0 - float: position on the optical axis 
         """
-        z_int = z0 - (y1 -y2)/(np.tan(u1) - np.tan(u2))
-        y_int = y1 + np.tan(u1)*(z_int-z0)
+        z_int = z0 - (y1 -y2)/(u1 - u2)
+        y_int = y1 + u1*(z_int-z0)
         return z_int, y_int
 
     def get_image_distance(self, object_dist):
@@ -309,7 +315,8 @@ class ParaxialRaytracer(object):
             EP_is_virtual = False
 
         # Launch the marginal ray and determine its height at the aperture stop.
-        marginal_ray_angle = np.arctan((EPD/2.0)/(position_EP - self.vertex[0])) 
+        marginal_ray_angle = np.arctan((EPD/2.0)/(position_EP - self.vertex[0]))
+        print("marginal ray angle=", marginal_ray_angle)
         # assert ((marginal_ray_angle > 0) and EP_is_virtual)
         ynu2 = np.matmul(np.linalg.inv(self.front_group_matrix), np.array([np.tan(marginal_ray_angle)*np.abs(self.vertex[0]), marginal_ray_angle*self.n[0]]).T)
         stop_radius = ynu2[0]
@@ -331,7 +338,7 @@ class ParaxialRaytracer(object):
 
         y_marg = stop_radius; u_marg = 0.0 # ray from the edge of the aperture stop, its image at the exit pupil plane gives the radius of the exit pupil
         ynu2 = np.matmul(self.rear_group_matrix, np.array([y_marg, u_marg*self.n[self.AS_surf]]).T)
-        diameter_XP = 2.0*(ynu2[0] + np.tan((ynu2[1]/(self.n[-2])))*(position_XP + (self.vertex[-1]-self.vertex[-2])))
+        diameter_XP = 2.0*(ynu2[0] + (ynu2[1]/(self.n[-2]))*(position_XP + (self.vertex[-1]-self.vertex[-2])))
 
         print("position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual")
         print(position_EP, marginal_ray_angle, abs(stop_radius), position_XP, abs(diameter_XP), EP_is_virtual, XP_is_virtual)
@@ -348,17 +355,7 @@ class ParaxialRaytracer(object):
         INTERSECTION_FOUND = False
         while (not INTERSECTION_FOUND):
             u_launch_AS = 0.5*(u_min + u_max) # launch angle at the aperture stop
-
             y, u = self._trace_ray_paraxially_front_group_to_object(0.0, -u_launch_AS)
-            # # REMOVE
-            # ynu_reverse = self.trace_ray_paraxially(0.0, -u_launch_AS, start_surf=self.AS_surf, stop_surf=1, forward=False, skip_start_surf=True)
-            # ynu_tmp = np.linalg.inv(self._Tmat(self.t[0], self.n[0])) @ ynu_reverse[1,:]
-            # y_ = ynu_tmp[0]
-            # u_ = ynu_tmp[1]/self.n[0]
-            # print(">>>>>  y=", y, "y_=", y_)
-            # # y = y_
-            # # u = u_
-            # # REMOVE
             assert y > 0
             if y < obj_height:
                 u_min = u_launch_AS

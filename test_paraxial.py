@@ -11,10 +11,10 @@ import numpy as np
 class Test1(unittest.TestCase):
    
     def setUp(self):
-        self.lens_sequence = read_lens("lens_files/test_doublet_realXP_v2.txt", SAG=False, lens_unit="mm")
+        # self.lens_sequence = read_lens("lens_files/test_doublet_realXP_v2.txt", SAG=False, lens_unit="mm")
         # self.lens_sequence = read_lens("lens_files/lens_Kidger2004_modified.txt", SAG=False, lens_unit="mm")
         # self.lens_sequence = read_lens("lens_files/lens_Kidger2004_modified_v2.txt", SAG=False, lens_unit="mm")
-        # self.lens_sequence = read_lens("lens_files/stepper_lens.txt", SAG=False, lens_unit="mm")
+        self.lens_sequence = read_lens("lens_files/stepper_lens.txt", SAG=False, lens_unit="mm")
         self.PR = ParaxialRaytracer(self.lens_sequence)
         self.raytracer = RayTracer(self.lens_sequence)
 

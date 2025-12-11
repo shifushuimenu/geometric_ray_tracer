@@ -83,7 +83,16 @@ def find_chief_rays(lens_sequence, obj_height, u_max_start = np.pi/3, eps=1e-6):
     return y_cr, u_cr, z_sag_cr
 
 
-def intersection_line_segments(y1: float, u1: float, y2: float, u2: float, z0: float) -> Tuple[float, float]:
-    z_int = z0 - (y1 -y2)/(np.tan(u1) - np.tan(u2))
-    y_int = y1 + np.tan(u1)*(z_int-z0)
+def intersection_line_segments(y1: float, theta1: float, y2: float, theta2: float, z0: float) -> Tuple[float, float]:
+    """
+    Intersection point between ray (y1,u1) and (y2,u2) launched at z-position z0.
+
+    Parameters
+    ----------
+    y1, y2 - float: ray heights
+    theta1, theta2 - float: ray angles
+    z0 - float: position on the optical axis 
+    """    
+    z_int = z0 - (y1 -y2)/(np.tan(theta1) - np.tan(theta2))
+    y_int = y1 + np.tan(theta1)*(z_int-z0)
     return z_int, y_int
