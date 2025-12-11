@@ -374,20 +374,20 @@ class ParaxialRaytracer(object):
         ynu_reverse = self.trace_ray_paraxially(0.0, -u_launch_AS, start_surf=self.AS_surf, stop_surf=1, forward=False, skip_start_surf=True)
         # 2. from right before first vertex to object plane
         ynu_reverse[0,:] = np.linalg.inv(self._Tmat(self.t[0], self.n[0])) @ ynu_reverse[1,:]
-        return ynu_reverse
+        # return ynu_reverse
 
         # # trace a ray from the object to the image plane
         ynu_object = np.array([obj_height, u_launch*self.n[0]])
         # # 1. from object to first vertex 
-        # ynu1 = self._Tmat(self.t[0], self.n[0]) @ ynu_object
+        ynu1 = self._Tmat(self.t[0], self.n[0]) @ ynu_object
         # # 2. from right before first vertex till right after last vertex 
-        ynu_chief = self.trace_ray_paraxially(ynu_reverse[1,0], ynu_reverse[0,1]/self.n[0], 1, self.num_surfs-2, forward=True)
+        ynu_chief = self.trace_ray_paraxially(ynu1[0], ynu1[1]/self.n[0], 1, self.num_surfs-2, forward=True)
         ynu_chief[0,:] = ynu_object # overwrite
         # 3. from right after last vertex till image plane
         ynu_image = self._Tmat(self.t[self.num_surfs-2], self.n[self.num_surfs-2]) @ ynu_chief[self.num_surfs-2,:]
-        ynu_chief[self.num_surfs-1,:] = ynu_image
+        ynu_chief[self.num_surfs-1,:] = ynu_image # overwrite
 
-        print("ynu_chief[self.AS_surf, 0]=", ynu_chief[self.AS_surf, 0])
+        # print("ynu_chief[self.AS_surf, 0]=", ynu_chief[self.AS_surf, 0])
         # assert np.isclose(ynu_chief[self.AS_surf, 0], 0.0, atol=10*eps)
 
         return ynu_chief

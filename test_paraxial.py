@@ -69,7 +69,7 @@ class Test1(unittest.TestCase):
         fig = plot_paraxial_surfaces(self.PR.vertex)
         ynu = self.PR.find_chief_ray(obj_height=obj_height)
         print("ynu=", ynu)
-        ynu1 = self.PR._trace_ray_paraxially_front_group_to_object(0.0, ynu[self.PR.AS_surf,1]/self.PR.n[self.PR.AS_surf-1]) # INCONSISTENT
+        ynu1 = self.PR._trace_ray_paraxially_front_group_to_object(0.0, ynu[self.PR.AS_surf,1]/self.PR.n[self.PR.AS_surf-1])
         print("ynu1=", ynu1)
 
         ynu_forward = self.PR.trace_ray_paraxially(ynu[1,0], ynu[0,1]/self.PR.n[0], 1, self.PR.num_surfs-2, True)
