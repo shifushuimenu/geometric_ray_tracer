@@ -100,7 +100,7 @@ for f in range(num_fields):
         z_sag[0] = 0
         fig = plot_ray(zdist, P_intersect[1,:,r,f], fig, z_sag = z_sag, color=colors[f])
 
-plot_spherical_surfaces(zdist, R, n, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), config, fig) # IMPROVE: use actual clear aperture at each surface 
+plot_spherical_surfaces(zdist, R, n, (t[0]*np.abs(gamma1_field[0])+max_obj_height)*np.ones_like(R), AS_surf, config, fig) # IMPROVE: use actual clear aperture at each surface 
 
 fig.axes[0].set_ylim((-36.0,10.09))
 fig.axes[0].axis("equal")

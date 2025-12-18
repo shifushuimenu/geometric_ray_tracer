@@ -16,7 +16,7 @@ ray_tracer = RayTracer(lens_sequence)
 ray_data = ray_tracer.calculate_meridional_ray_data(lens_sequence, config)
 
 fig, _, _ = plot_spherical_surfaces(lens_sequence.vertex, lens_sequence.R, lens_sequence.n, 
-                              ray_data.clear_apertures, config)
+                              ray_data.clear_apertures, lens_sequence.AS_surf, config)
 fig = plot_ray_bundles(ray_data, fig)
 plt.show()
 

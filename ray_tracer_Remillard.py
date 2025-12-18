@@ -218,7 +218,7 @@ if True:
 
 # # horizontal incoming ray
 # fig = plot_ray(zdist, y_inf[:], fig, color="m", linewidth=1)
-fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, n, heights, config, fig)
+fig, surface_segments, edge_segments = plot_spherical_surfaces(lens_sequence.vertex, R, n, heights, AS_surf, config, fig)
 
 for l in surface_segments[4]:
     print(l[0].set_color("g"))
@@ -303,7 +303,7 @@ with open("lens_report.txt", "w") as fh:
     print(f"Entrance pupil diameter ENPD = {EPD} mm", file=fh)
     print(f"Entrance pupil position ENPP = {EPL} mm (measured from front vertex)", file=fh)    
     print(f"Exit pupil diameter XPD = {XPD} mm", file=fh)
-    print(f"Exit pupil position XPP = {XPL} mm (measured from back vertex)", file=fh)
+    print(f"Exit pupil position XPP = {XPL} mm (measured from image plane)", file=fh)
     print(f"Back Image Distance BID = {BID} mm", file=fh)
     print(f"Field of view FOV = {FOV}", file=fh)    
     print(f"Marginal Ray Angle = {marginal_ray_angle} rad = {marginal_ray_angle*360/(2*np.pi)} degrees", file=fh)    

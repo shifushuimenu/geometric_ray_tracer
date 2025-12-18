@@ -4,12 +4,14 @@ import matplotlib as mpl
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from utils import timer_func
-from trace_ray import MeridionalRayData
-
 from typing import Iterable, Tuple, List
-from config import Config
 
-__all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces", "plot_ray_bundles"]
+from trace_ray import MeridionalRayData
+from config import Config
+from paraxial import ParaxialQuantities
+from lens import LensSequence
+
+__all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces", "plot_ray_bundles", "display_pupils_and_stops"]
 
 plot_params = {"figsize" : (12,4), "surfcolor" : "red", "lens_unit" : "mm"}
 
@@ -61,7 +63,7 @@ def plot_ray(vertex: Iterable, ys: Iterable, fig: Figure = None, z_sag: Iterable
     return fig
 
 
-def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_apertures: Iterable, 
+def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_apertures: Iterable, AS_surf: float,
                             config: Config, fig: Figure = None) -> Tuple[Figure, List, List]:
     """
     Plot spherical lens surfaces up to their clear apertures.
@@ -84,7 +86,7 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
         curved_up = fig.axes[0].plot(vertex[i]+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)    
         yy = -np.sqrt(Rs[i]**2-(np.abs(Rs[i])-zz)**2)
         curved_dn = fig.axes[0].plot(vertex[i]+np.sign(Rs[i])*zz, yy, color="k", linewidth=2)
-        line2d_segments = (curved_up, curved_dn)    
+        line2d_segments = [curved_up, curved_dn]
 
         zpos = vertex[i]+np.sign(Rs[i])*zmax
         if front: # front surface of a lens elements
@@ -92,12 +94,12 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
                 # plot vertical lines
                 vline_up = fig.axes[0].plot([zpos, zpos], [clear_apertures[i], clear_apertures[i+1]], color="k", linewidth=2)
                 vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_apertures[i+1], -clear_apertures[i]], color="k", linewidth=2)
-                line2d_segments += (vline_up, vline_dn,)
+                line2d_segments += [vline_up, vline_dn]
         else: # back surface of a lens element
             if clear_apertures[i] < clear_apertures[i-1]:
                 vline_up = fig.axes[0].plot([zpos, zpos], [clear_apertures[i], clear_apertures[i-1]], color="k", linewidth=2)
                 vline_dn = fig.axes[0].plot([zpos, zpos], [-clear_apertures[i-1], -clear_apertures[i]], color="k", linewidth=2)
-                line2d_segments += (vline_up, vline_dn,)
+                line2d_segments += [vline_up, vline_dn]
         return fig, line2d_segments
     
     def _draw_horizontal_edge(i: int, fig: Figure) -> Figure:
@@ -112,7 +114,7 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
         # bottom
         edge_bottom = fig.axes[0].plot([zpos1, zpos2], [-max_CA, -max_CA], color="k", linewidth=2)
 
-        return fig, (edge_top, edge_bottom)
+        return fig, [edge_top, edge_bottom]
 
     num_surfs = len(vertex)
 
@@ -148,11 +150,12 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
 
             # Avoid duplicate surface segments for cemented lens elements
             if nmat[i] and nmat[i+1]:
-                surface_segments.extend((line2d_segments_front,))
+                surface_segments.extend([line2d_segments_front])
                 surface_done[i] = True
             else:
-                surface_segments.extend((line2d_segments_front, line2d_segments_back))
+                surface_segments.extend([line2d_segments_front, line2d_segments_back])
                 surface_done[i:i+2] = True
+
 
     # Insert empty entries so that surface indexing is consistent.
     for i in range(0, num_surfs):
@@ -163,7 +166,12 @@ def plot_spherical_surfaces(vertex: Iterable, Rs: Iterable, ns: Iterable, clear_
     surface_segments[0] = [line2d_object]
     surface_segments[num_surfs-1] = [line2d_image]
 
-    # fig.axes[0].set_aspect("equal")
+    # aperture stop
+    aw = 0.25 # lens units # 0.1*np.max(clear_apertures) # size of symbols drawn at the edges of the aperture stop and pupils
+    fig, line2d_segments_AS = plot_aperture_edges(vertex[AS_surf], clear_apertures[AS_surf],  aw, "", fig)
+    surface_segments[AS_surf].extend(line2d_segments_AS)
+
+    fig.axes[0].set_aspect("auto")
     return fig, surface_segments, edge_segments
 
 
@@ -178,6 +186,53 @@ def plot_ray_bundles(ray_data: MeridionalRayData, fig: Figure) -> Figure:
         for r in range(num_rays):
             fig = plot_ray(ray_data.vertex, ray_data.y[:,r,f], fig, ray_data.z_sag[:,r,f], color=colors[f])
     return fig      
+
+
+def plot_aperture_edges(aperture_position: float, aperture_radius: float, marker_w: float, label: str, fig: Figure) -> Tuple[Figure, List]:
+    aspectr = fig.axes[0].get_aspect()
+    ar = 1.0 if aspectr in ["auto"] else aspectr    
+    fig.axes[0].text(aperture_position, aperture_radius+1.2*marker_w*ar, label)
+    line_segments = []
+    for pm in [+1,-1]:
+        line_segments_h = fig.axes[0].plot([aperture_position-marker_w, aperture_position+marker_w], [pm*aperture_radius, pm*aperture_radius], color="black", linewidth=2)
+        line_segments_v = fig.axes[0].plot([aperture_position, aperture_position], [pm*aperture_radius, pm*(aperture_radius+marker_w/ar)], color="black", linewidth=2)
+        line_segments.extend([line_segments_h, line_segments_v])
+    return fig, line_segments
+
+
+def display_pupils_and_stops(lens_sequence: LensSequence, paraxial_quantities: ParaxialQuantities, fig: Figure) -> Figure:
+    y_chief = paraxial_quantities.y_chief
+    y_marg = paraxial_quantities.y_marg
+    u_marg = paraxial_quantities.u_marg
+    EPP = paraxial_quantities.EPP
+    XPP = paraxial_quantities.XPP
+    EPD = paraxial_quantities.EPD
+    XPD = paraxial_quantities.XPD
+    aw = 0.1 * np.max(lens_sequence.clear_diameter) # size of symbols drawn at the edges of the aperture stop and pupils
+    for pm in [+1, -1]:
+        # Plot chief ray and marginal ray.
+        fig = plot_ray(lens_sequence.vertex, pm*y_chief, fig, z_sag=np.zeros_like(y_chief), color="blue", linewidth=2)
+        fig = plot_ray(lens_sequence.vertex, pm*y_marg, fig, z_sag=np.zeros_like(y_chief), color="red", linewidth=2)
+        # Extrapolate the chief ray on the object side and image side till it hits the optical axis.
+        fig = plot_ray([lens_sequence.vertex[1], EPP], [pm*y_chief[1], 0], fig, z_sag=np.zeros(2), color="blue", linewidth=2, dashtype="--")
+        # Note that the exit pupil position is measured relative to the image plane.
+        fig = plot_ray([lens_sequence.vertex[-2], lens_sequence.vertex[-1]+XPP], [pm*y_chief[-2], 0], fig, z_sag=np.zeros(2), color="blue", linewidth=2, dashtype="--")
+
+        # Extrapolate the marginal ray on the object side and image side till it hits the edge 
+        # of the entrance and exit pupil.
+        sgn_EP_ = np.sign(pm*(y_marg[1] + u_marg[1])*(EPP - lens_sequence.vertex[1]))
+        fig = plot_ray([lens_sequence.vertex[1], EPP], [pm*y_marg[1], sgn_EP_*EPD/2.0], fig, 
+                       z_sag=np.zeros(2), color="red", linewidth=2, dashtype="--")
+        sgn_XP_ = np.sign(pm*(y_marg[-2] + u_marg[-2]*(XPP + (lens_sequence.vertex[-1] - lens_sequence.vertex[-2]))))
+        fig = plot_ray([lens_sequence.vertex[-2], lens_sequence.vertex[-1]+XPP], [pm*y_marg[-2], sgn_XP_*XPD/2.0], fig, 
+                       z_sag=np.zeros(2), color="red", linewidth=2, dashtype="--")
+
+    # Draw edges of the aperture stop, the entrance pupil and the exit pupil.
+    fig, _ = plot_aperture_edges(EPP, EPD/2.0, aw, "EP", fig)
+    fig, _ = plot_aperture_edges(lens_sequence.vertex[-1]+XPP, XPD/2.0, aw, "XP", fig)
+    # fig = _plot_aperture_edges(lens_sequence.vertex[lens_sequence.AS_surf], paraxial_quantities.stop_radius, aw, "AS", fig)
+
+    return fig
 
 
 # def plot_paraxial_surfaces_v2(dists: Iterable, fig: Figure = None) -> Figure:

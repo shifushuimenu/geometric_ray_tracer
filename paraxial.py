@@ -9,11 +9,12 @@ from typing import Tuple
 from lens import LensSequence
 from config import Config
 
+from dataclasses import dataclass
 import matplotlib.pyplot as plt
 
 __all__ = ["ParaxialRaytracer", "ParaxialQuantities"]
 
-
+@dataclass(init=True, repr=False)
 class ParaxialQuantities(object):
     """
     Paraxial quantities for finite conjugate system
@@ -23,40 +24,69 @@ class ParaxialQuantities(object):
     distance and BID the conjugate ABCD matrix is calculated. The original distance of the image 
     plane in the LensSequence is not altered.
     """
-    def __init__(self, EFL, BFL, FFL, V1H1, V2H2, 
-                 EPP, EPD, EP_is_virtual, marginal_ray_angle,
-                 XPP, XPD, XP_is_virtual,
-                 object_dist, image_dist,
-                 magnification, angular_magnification,
-                 stop_radius,
-                 BID, 
-                 y_chief, u_chief, y_marg, u_marg,
-                 ABCD_system, ABCD_conjugate
-                 ):
-        self.EFL = EFL
-        self.BFL = BFL
-        self.FFL = FFL
-        self.V1H1 = V1H1
-        self.V2H2 = V2H2
-        self.EPP = EPP
-        self.EPD = EPD
-        self.EP_is_virtual = EP_is_virtual
-        self.marginal_ray_angle = marginal_ray_angle
-        self.XPP = XPP
-        self.XPD = XPD
-        self.XP_is_virtual = XP_is_virtual
-        self.object_dist = object_dist
-        self.image_dist = image_dist
-        self.magnification = magnification
-        self.angular_magnification = angular_magnification
-        self.stop_radius = stop_radius
-        self.BID = BID
-        self.y_chief = y_chief
-        self.u_chief = u_chief
-        self.y_marg = y_marg
-        self.u_marg = u_marg
-        self.ABCD_system = ABCD_system
-        self.ABCD_conjugate = ABCD_conjugate
+    # def __init__(self, EFL, BFL, FFL, V1H1, V2H2, 
+    #              EPP, EPD, EP_is_virtual, marginal_ray_angle,
+    #              XPP, XPD, XP_is_virtual,
+    #              object_dist, image_dist,
+    #              magnification, angular_magnification,
+    #              stop_radius,
+    #              BID, 
+    #              y_chief, u_chief, y_marg, u_marg,
+    #              ABCD_system, ABCD_conjugate
+    #              ):
+    #     self.EFL = EFL
+    #     self.BFL = BFL
+    #     self.FFL = FFL
+    #     self.V1H1 = V1H1
+    #     self.V2H2 = V2H2
+    #     self.EPP = EPP
+    #     self.EPD = EPD
+    #     self.EP_is_virtual = EP_is_virtual
+    #     self.marginal_ray_angle = marginal_ray_angle
+    #     self.XPP = XPP
+    #     self.XPD = XPD
+    #     self.XP_is_virtual = XP_is_virtual
+    #     self.object_dist = object_dist
+    #     self.image_dist = image_dist
+    #     self.magnification = magnification
+    #     self.angular_magnification = angular_magnification
+    #     self.stop_radius = stop_radius
+    #     self.BID = BID
+    #     self.y_chief = y_chief
+    #     self.u_chief = u_chief
+    #     self.y_marg = y_marg
+    #     self.u_marg = u_marg
+    #     self.ABCD_system = ABCD_system
+    #     self.ABCD_conjugate = ABCD_conjugate
+    EFL: float
+    BFL: float
+    FFL: float
+    V1H1: float
+    V2H2: float
+    EPP: float
+    EPD: float
+    EP_is_virtual: bool
+    marginal_ray_angle: float
+    XPP: float
+    XPD: float
+    XP_is_virtual: bool
+    object_dist: float
+    image_dist: float
+    magnification: float
+    angular_magnification: float
+    stop_radius: float
+    BID: float
+    y_chief: np.ndarray
+    u_chief: np.ndarray
+    y_marg: np.ndarray
+    u_marg: np.ndarray
+    ABCD_system: np.ndarray
+    ABCD_conjugate: np.ndarray
+
+    def __repr__(self):
+        kws = [f"{key}={value}" for key, value in self.__dict__.items()]
+        return "\nParaxial quantities: \n====================\n{}".format("\n".join(kws))
+                  
 
 
 class ParaxialRaytracer(object):
@@ -193,7 +223,7 @@ class ParaxialRaytracer(object):
         """
         assert 1 <= start_surf < self.num_surfs-1, "Start and stop surfaces must not include object or image surface."
         if forward: assert stop_surf > start_surf
-        if not forward: assert stop_surf < start_surf
+        if not forward: assert stop_surf < start_surf, f"stop_surf={stop_surf}, start_surf={start_surf}"
         if skip_start_surf: assert not forward
 
         ynu = np.zeros((self.num_surfs,2)) * np.nan # Nan values are not shown by plt.plot().
@@ -292,8 +322,8 @@ class ParaxialRaytracer(object):
 
     def get_BFL(self):
         """get back focal length"""
-        n2 = self.n[-1] # image space refractive index
-        return (-self.system_matrix[0,0]/self.system_matrix[1,0]*n2)
+        n2 = self.n[-2] # image space refractive index. Note: self.n[-1] is the index of refraction after the image plane and is not used.
+        return (-n2*self.system_matrix[0,0]/self.system_matrix[1,0])
     
     def get_FFL(self):
         """get front focal length"""
@@ -307,7 +337,7 @@ class ParaxialRaytracer(object):
 
     def get_V2H2(self):
         """distance of the back principal plane P2 measured from the back vertex (Note: V2H2 is negative if P2 is inside the lens.)"""
-        n2 = self.n[-1] # image space refractive index
+        n2 = self.n[-2] # image space refractive index. Note: self.n[-1] is the index of refraction after the image plane and is not used.
         return (1.0-n2*self.system_matrix[0,0])/self.system_matrix[1,0]
 
     def _get_entrance_and_exit_pupil(self, EPD: int) -> Tuple[float, float, float, float, float, float, bool, bool]:
@@ -414,12 +444,12 @@ class ParaxialRaytracer(object):
         self.BFL=self.get_BFL()
         self.FFL=self.get_FFL()
         self.V1H1=self.get_V1H1()
-        self.V2H2=self.get_V2H2(),
+        self.V2H2=self.get_V2H2()
         self.EPP, self.EPD, self.marginal_ray_angle, self.stop_radius, self.XPP, self.XPD, self.EP_is_virtual, self.XP_is_virtual=self._get_entrance_and_exit_pupil(config.EPD)
         self.object_dist = self.vertex[0]
         self.image_dist = self.get_image_distance(self.object_dist)
         self.magnification=self.get_magnification()
-        self.angular_magnification=self.get_angular_magnification(),
+        self.angular_magnification=self.get_angular_magnification()
         self.BID=self.get_BID()
         self.y_chief, self.u_chief = self.find_chief_ray(config.max_obj_height)
         self.y_marg, self.u_marg = self.marginal_ray_from_EPD(self.EPD)

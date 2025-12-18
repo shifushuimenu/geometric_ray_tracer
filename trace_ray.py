@@ -20,9 +20,9 @@ class MeridionalRayData(object):
         self.num_surfs = num_surfs
         self.num_rays = num_rays
         self.num_fields = num_fields
-        self.y = y  # ray heights, y[0:num_surfs]
-        self.u = u  # ray angles,  u[0:num_surfs]
-        self.z_sag = z_sag # surface sag, z_sag[0:num_surfs]
+        self.y = y  # ray heights, y[0:num_surfs,0:num_rays,0:num_fields]
+        self.u = u  # ray angles,  u[0:num_surfs,0:num_rays,0:num_fields]
+        self.z_sag = z_sag # surface sag, z_sag[0:num_surfs,0:num_rays,0:num_fields]
         self.vertex = vertex # z-position of the surface vertices
         self.clear_apertures = clear_apertures # the heights of the outermost rays, clear_apertures[0:num_surfs] 
         self.CHIEF_RAY_INDEX = self.num_rays//2

@@ -1,9 +1,12 @@
 from paraxial import ParaxialQuantities
 from lens import LensSequence
 from config import Config
+from aberrations import Aberrations3rd
 from matplotlib.figure import Figure
 from trace_ray import MeridionalRayData, NonmeridionalRayData
-from plot import plot_spherical_surfaces, plot_ray_bundles
+from plot import (plot_spherical_surfaces, 
+                  plot_ray_bundles,
+                  display_pupils_and_stops)
 
 import matplotlib as mpl
 
@@ -38,7 +41,7 @@ class DisplayInterface:
 
     def plot_spherical_surfaces(self, fig: Figure) -> Figure:
         fig, surface_segments, edge_segments = plot_spherical_surfaces(self.LS.vertex, self.LS.R, self.LS.n, 
-                                                                       self.RD.clear_apertures, self.config, fig)
+                                                                       self.RD.clear_apertures, self.LS.AS_surf, self.config, fig)
         self.objects_on_screen["surfaces"] = surface_segments
         self.objects_on_screen["edges"] = edge_segments
 
@@ -48,7 +51,8 @@ class DisplayInterface:
         return fig 
     
     def highlight_surface(self, i):
-        # IMPROVE: change color to entire linestyle
+        # IMPROVE: - change color to entire linestyle
+        #          - In a new config, surfaces are not highlighted when pressing Enter on the corresponding line.
         """Highlight the surface with index i with a given color"""            
         if "surfaces" in self.objects_on_screen:
             if self.highlighted_surface_i is not None:
@@ -74,7 +78,7 @@ class DisplayInterface:
         return fig
 
     def plot_pupils_and_stops(self, fig: Figure) -> Figure:
-        return fig 
+        return display_pupils_and_stops(self.LS, self.PQ, fig) 
 
     def hide_pupils_and_stops(self, fig: Figure) -> Figure:
         return fig
@@ -118,3 +122,61 @@ class DisplayInterfaceRayspot(object):
         fig.tight_layout()
         return fig
 
+
+class DisplayInterfaceSeidelDiagram(object):
+    def __init__(self, lens_sequence: LensSequence, config: Config, aberrations: Aberrations3rd) -> Figure:
+        self.lens_sequence = lens_sequence 
+        self.config = config
+        self.aberrations = aberrations
+
+    def init_figure(self) -> Figure:
+        fig = Figure()
+        fig.set_size_inches(12,8)
+        fig.set_layout_engine("tight")
+        ax = fig.subplots(1,1)
+        return fig
+
+    def plot_Seidel_diagram(self, AS_surf, config: Config, fig: Figure=None) -> Figure:
+        num_aberrations = 5
+        num_surfs = self.lens_sequence.num_surfs
+        barWidth = 1.0/(num_aberrations+1)
+
+        # IMPROVE: Skip object surface which has not aberrations.
+        spherical = self.aberrations.S1
+        coma = self.aberrations.S2
+        astigmatism = self.aberrations.S3
+        field_curvature = self.aberrations.S4
+        distortion = self.aberrations.S5
+
+        br1 = range(0, num_surfs) 
+        br2 = [x + barWidth for x in br1] 
+        br3 = [x + barWidth for x in br2] 
+        br4 = [x + barWidth for x in br3] 
+        br5 = [x + barWidth for x in br4] 
+        br_sep = [x + barWidth for x in br5] 
+
+        if fig is None:
+            fig = self.init_figure()
+
+        fig.axes[0].bar(br1, spherical, color ='red', width = barWidth, 
+                edgecolor ='grey', label ='spherial') 
+        fig.axes[0].bar(br2, coma, color ='green', width = barWidth, 
+                edgecolor ='grey', label ='coma') 
+        fig.axes[0].bar(br3, astigmatism, color ='magenta', width = barWidth, 
+                edgecolor ='grey', label ='astigmatism') 
+        fig.axes[0].bar(br4, field_curvature, color ='cyan', width = barWidth, 
+                edgecolor ='grey', label ='field curvature') 
+        fig.axes[0].bar(br5, distortion, color ='yellow', width = barWidth, 
+                edgecolor ='grey', label ='distortion') 
+        ymin, ymax = fig.axes[0].get_ylim()
+        fig.axes[0].vlines(br_sep, ymin, ymax, linewidth=2, color="black")
+        fig.axes[0].tick_params(top=True, labeltop=True, bottom=True, labelbottom=True)
+
+        fig.axes[0].set_ylabel('Seidel aberrations [%s]'%(config.lens_unit), fontweight ='bold', fontsize = 15) 
+        fig.axes[0].set_xticks([r + 2*barWidth for r in range(1,num_surfs)], 
+            ["STO" if r == AS_surf else str(r) for r in range(1,num_surfs-1)]+["SUM"])
+
+        fig.axes[0].set_title("Surfaces", fontsize=15)
+        fig.axes[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5, fontsize=15)
+
+        return fig

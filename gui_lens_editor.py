@@ -9,9 +9,11 @@ import numpy as np # IMPROVE: don't use numpy
 from datetime import datetime
 from typing import List, Iterable
 
-from interface import DisplayInterface, DisplayInterfaceRayspot
+from interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceSeidelDiagram
 from lens import LensSequence
 from trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData
+from paraxial import ParaxialRaytracer, ParaxialQuantities
+from aberrations import Seidel3rd_aberrations, Aberrations3rd
 
 from config import Config
 from gui_config_options import ConfigOptionsEntry
@@ -38,6 +40,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QDoubleSpinBox,
+    QTextBrowser,
 )
 
 from PyQt6.QtGui import QIcon, QAction
@@ -104,9 +107,12 @@ class LensEditor(QMainWindow):
         add_config_action.triggered.connect(self.add_lens_configuration)
         configsMenu.addAction(add_config_action)
         toolsMenu = menuBar.addMenu("Handy &Tools")
+        show_pupils_action = QAction(QIcon(), "First &Order", self)
+        show_pupils_action.triggered.connect(self.showPupilsDiagram)
         autofocus_action = QAction(QIcon(), "Paraxial &Autofocus", self)
         defocus_action = QAction(QIcon(), "&Defocus to CLC", self)
         make_symmetric_action = QAction(QIcon(), "&Make symmetric", self)
+        toolsMenu.addAction(show_pupils_action)
         toolsMenu.addAction(autofocus_action)
         toolsMenu.addAction(defocus_action)
         toolsMenu.addAction(make_symmetric_action)
@@ -119,8 +125,6 @@ class LensEditor(QMainWindow):
         open_docs_action = QAction(QIcon(), "Open &Documentation", self)
         helpMenu.addAction(open_docs_action)
 
-        # insert field lens 
-        # show pupils and stops
     
     def create_toolbar(self):
         """Create the main toolbar"""
@@ -131,7 +135,7 @@ class LensEditor(QMainWindow):
         spot_action = QAction(QIcon("icons/ray_spot_diagram_icon.png"), "&Ray Spot Diagram", self)
         rayfan_action = QAction(QIcon("icons/rayfan_icon.png"), "&Ray Fan Plot", self)
         Seidel_coefficients_action = QAction(QIcon(), "&Seidel Diagram", self)
-        MTF_action = QAction(QIcon(), "&MTF", self)        
+        MTF_action = QAction(QIcon(), "&Geometric MTF", self)        
         Gaussian_beam_action = QAction(QIcon(), "&Gaussian Beam", self)        
 
         self.raytraceWindow = None
@@ -236,7 +240,10 @@ class LensEditor(QMainWindow):
 
         if self.raytraceWindow is None:
             self.current_tab = self.configTabs.tabs_widget.currentWidget()
-            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)        
+            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)
+
+            # paraxial ray tracing 
+            paraxial_quantities = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
                         
             self.ray_tracer = RayTracer(self.lens_sequence)
             self.ray_data = self.ray_tracer.calculate_meridional_ray_data(self.lens_sequence, self.config)
@@ -244,13 +251,18 @@ class LensEditor(QMainWindow):
             # Using the ray data, update the clear apertures in the lens editor.
             self.current_tab.update_clear_apertures(self.current_tab.table, self.ray_data.clear_apertures)            
 
-            self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data)            
+            self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data, paraxial_quantities)            
             self.raytraceWindow = RaytraceDiagram(self.display_interface, self.ray_data)
 
             self.raytraceWindow.show()
         else:
             self.raytraceWindow.close()
             self.raytraceWindow = None
+
+    def showPupilsDiagram(self):
+        if self.raytraceWindow is not None:
+            self.pupilsWindow = PupilsDiagram(self.display_interface)
+            self.pupilsWindow.show()
 
     def showRaySpotDiagram(self):
         if self.raySpotDiagramWindow is None:
@@ -289,7 +301,13 @@ class LensEditor(QMainWindow):
 
     def showSeidelAberrationCoefficientsDiagram(self):
         if self.SeidelWindow is None:
-            self.SeidelWindow = SeidelAberrationCoefficientsDiagram()
+            self.current_tab = self.configTabs.tabs_widget.currentWidget()
+            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)        
+            PQ = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
+            aberrations = Seidel3rd_aberrations(PQ.y_chief, PQ.u_chief, PQ.y_marg, PQ.u_marg, self.lens_sequence)
+            self.display_interface = DisplayInterfaceSeidelDiagram(self.lens_sequence, self.config, aberrations)
+
+            self.SeidelWindow = SeidelAberrationCoefficientsDiagram(self.display_interface)
             self.SeidelWindow.show()
         else:
             self.SeidelWindow.close()
@@ -619,14 +637,10 @@ class LensEditorConfig(LensEditorConfigBase):
 
         self._set_table_entry_settings()
 
+class LayoutDiagram(QWidget):
 
-class RaytraceDiagram(QWidget):
-    "This widget has no parent and will appear as a free floating window."
-
-    def __init__(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
+    def __init__(self, display_interface: DisplayInterface):
         super().__init__()
-
-        self.setWindowTitle("Layout")
         self.display_interface = display_interface
         # Create the Figure and Canvas
         self.fig = self.display_interface.init_figure()
@@ -641,16 +655,40 @@ class RaytraceDiagram(QWidget):
         layout.addWidget(self.canvas)
         self.setLayout(layout)        
 
+        # IMPROVE: AttributeError: 'DisplayInterfaceRayspot' object has no attribute 'plot_spherical_surfaces'
         self.fig = self.display_interface.plot_spherical_surfaces(self.fig)
-        self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
 
+
+class RaytraceDiagram(LayoutDiagram):
+    "This widget has no parent and will appear as a free floating window."
+
+    def __init__(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
+        super().__init__(display_interface)
+
+        self.setWindowTitle("Layout")
+        self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
         self.canvas.draw()        
         self.canvas.flush_events()
 
     def highlight_surface(self, surf_nr):
         self.fig = self.display_interface.highlight_surface(surf_nr)
         self.canvas.draw()
+        self.canvas.flush_events()        
+
+
+class PupilsDiagram(LayoutDiagram):
+    def __init__(self, display_interface: DisplayInterface):
+        super().__init__(display_interface)
+
+        self.setWindowTitle("Paraxial Entrance and Exit Pupils")
+        self.fig = self.display_interface.plot_pupils_and_stops(self.fig)
+        self.canvas.draw()        
         self.canvas.flush_events()
+
+        textbrowser = QTextBrowser(self)
+        textbrowser.insertPlainText(self.display_interface.PQ.__repr__())
+        self.layout().addWidget(textbrowser)
+
 
 
 class RaySpotDiagram(QWidget):
@@ -718,12 +756,21 @@ class ModulationTransferFunctionDiagram(QWidget):
 class SeidelAberrationCoefficientsDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self):
+    def __init__(self, display_interface_Seidel: DisplayInterfaceSeidelDiagram):
         super().__init__()
-        self.label = QLabel("Seidel Aberration Coefficients")
+        self.setWindowTitle("Third-order Seidel aberrations coefficients")
+
+        self.fig = display_interface_Seidel.plot_Seidel_diagram(display_interface_Seidel.lens_sequence.AS_surf, display_interface_Seidel.config)
+
+        self.canvas = FigureCanvas(self.fig)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.label)
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)
         self.setLayout(layout)
+
+
 
 class GaussianBeamDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
