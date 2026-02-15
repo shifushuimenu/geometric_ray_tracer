@@ -90,6 +90,15 @@ class RayTracer(object):
         y, u, z_sag, y_vertexplane = trace_tangential_ray(y_obj[:,:], u_obj[:,:], self.lens_sequence, surf_start=0)
         # Dimensions: y[0:num_surfs, 0:num_rays, 0:num_fields]
         return y, u, z_sag, y_vertexplane
+    
+    def calculate_marginal_ray(self, lens_sequence: LensSequence, config: Config) -> np.ndarray:
+        """if one only needs the marginal ray ..."""
+        y_chief, u_chief, z_sag_chief = self.find_chief_rays(config.obj_heights)
+        # EPL: non-paraxial entrance pupil location
+        EPL = config.obj_heights[0]/np.tan(u_chief[0,config.MAX_OBJ_HEIGHT_INDEX]) - lens_sequence.t[0]
+        marginal_ray_angle = np.arctan((config.EPD/2.0)/(EPL+lens_sequence.t[0]))
+        return self.trace_tangential_ray([0.0], [marginal_ray_angle])
+
 
     @timer_func
     def calculate_meridional_ray_data(self, lens_sequence: LensSequence, config: Config) -> MeridionalRayData:

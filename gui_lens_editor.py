@@ -6,14 +6,19 @@
 import os
 import sys
 import numpy as np # IMPROVE: don't use numpy
+from math import cos, sin
 from datetime import datetime
 from typing import List, Iterable
 
-from interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceSeidelDiagram
+from interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
 from lens import LensSequence
 from trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData
 from paraxial import ParaxialRaytracer, ParaxialQuantities
 from aberrations import Seidel3rd_aberrations, Aberrations3rd
+
+# IMPROVE: raytracing non-meridional rays should be a method of the raytracer
+from nonmeridional_rays import raytrace_nonmeridional_rays
+# END IMPROVE
 
 from config import Config
 from gui_config_options import ConfigOptionsEntry
@@ -94,13 +99,13 @@ class LensEditor(QMainWindow):
         fileMenu.addAction(open_file_action)
         fileMenu.addAction(save_file_action)
         settingsMenu = menuBar.addMenu("&Settings")
-        set_pupils_action = QAction(QIcon(), "&Pupils", self)
-        set_fields_action = QAction(QIcon(), "&Fields", self)
+        set_pupils_action = QAction(QIcon(), "&Pupils and Fields", self)
+        # set_fields_action = QAction(QIcon(), "&Fields", self)
         set_pupils_action.triggered.connect(self.set_pupils_handler)
-        set_fields_action.triggered.connect(self.set_fields_handler)
+        # set_fields_action.triggered.connect(self.set_fields_handler)
         set_wavelengths_action = QAction(QIcon(), "&Wavelengths", self)        
         settingsMenu.addAction(set_pupils_action)        
-        settingsMenu.addAction(set_fields_action)
+        # settingsMenu.addAction(set_fields_action)
         settingsMenu.addAction(set_wavelengths_action)
         configsMenu = menuBar.addMenu("&Configurations")
         add_config_action = QAction(QIcon(), "&Add configuration", self)
@@ -110,7 +115,9 @@ class LensEditor(QMainWindow):
         show_pupils_action = QAction(QIcon(), "First &Order", self)
         show_pupils_action.triggered.connect(self.showPupilsDiagram)
         autofocus_action = QAction(QIcon(), "Paraxial &Autofocus", self)
+        autofocus_action.triggered.connect(self.paraxial_autofocus)
         defocus_action = QAction(QIcon(), "&Defocus to CLC", self)
+        defocus_action.triggered.connect(self.defocus_to_CLC)
         make_symmetric_action = QAction(QIcon(), "&Make symmetric", self)
         toolsMenu.addAction(show_pupils_action)
         toolsMenu.addAction(autofocus_action)
@@ -134,7 +141,7 @@ class LensEditor(QMainWindow):
         raytrace_action = QAction(QIcon("icons/raytrace_icon.png"), "&Raytrace", self)        
         spot_action = QAction(QIcon("icons/ray_spot_diagram_icon.png"), "&Ray Spot Diagram", self)
         rayfan_action = QAction(QIcon("icons/rayfan_icon.png"), "&Ray Fan Plot", self)
-        Seidel_coefficients_action = QAction(QIcon(), "&Seidel Diagram", self)
+        Seidel_coefficients_action = QAction(QIcon("icons/Seidel_coeffs_icon.png"), "&Seidel Diagram", self)
         MTF_action = QAction(QIcon(), "&Geometric MTF", self)        
         Gaussian_beam_action = QAction(QIcon(), "&Gaussian Beam", self)        
 
@@ -228,8 +235,38 @@ class LensEditor(QMainWindow):
         print("max obj height=", self.config.max_obj_height)
         self.popup_window.close()
 
-    def set_fields_handler(self):
-        pass
+    def get_lens_sequence(self):
+        """get lens sequence of the currently active lens configuration"""
+        self.current_tab = self.configTabs.tabs_widget.currentWidget()
+        lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)
+        return lens_sequence
+
+    def paraxial_autofocus(self):
+        """Set the image distance to the paraxial focus."""
+        print("paraxial autofocus")
+        lens_sequence = self.get_lens_sequence()
+        image_dist = ParaxialRaytracer(lens_sequence).get_image_distance(-lens_sequence.t[0])
+        self.current_tab.table.setItem(self.current_tab.table.rowCount()-2, 3, QTableWidgetItem(float_as_str(image_dist)))
+
+    def defocus_to_CLC(self):
+        """
+        Defocus to the circle of least confusion (CLC) which exists in the case of spherical aberration and astigmatism.
+        The CLC is located at three quarters of the way from the paraxial focus to the marginal focus.
+        """
+        print("defocus to CLC")
+        lens_sequence = self.get_lens_sequence()
+        PQ = ParaxialRaytracer(lens_sequence).paraxial_quantities(self.config)
+        ray_tracer = RayTracer(lens_sequence)
+        y, u, _, _ = ray_tracer.calculate_marginal_ray(lens_sequence, self.config)
+        if not np.isclose(u[-1], 0.0):
+            dx = -y[-1][0] / np.tan(u[-1][0])
+            marginal_focus = lens_sequence.t[-2] + dx
+            paraxial_focus = ParaxialRaytracer(lens_sequence).get_image_distance(-lens_sequence.t[0])
+            image_dist = paraxial_focus - 0.75*(paraxial_focus - marginal_focus)
+            self.current_tab.table.setItem(self.current_tab.table.rowCount()-2, 3, QTableWidgetItem(float_as_str(image_dist)))
+        else:
+            print("Image-space telecentric system: Cannot defocus to CLC.")
+        
 
     # =================================
     # Event handlers for toolbar 
@@ -239,8 +276,7 @@ class LensEditor(QMainWindow):
         print("self.config.max_obj_height=", self.config.max_obj_height)
 
         if self.raytraceWindow is None:
-            self.current_tab = self.configTabs.tabs_widget.currentWidget()
-            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)
+            self.lens_sequence = self.get_lens_sequence()
 
             # paraxial ray tracing 
             paraxial_quantities = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
@@ -285,7 +321,40 @@ class LensEditor(QMainWindow):
 
     def showRayFanDiagram(self):
         if self.rayFanDiagramWindow is None:
-            self.rayFanDiagramWindow = RayFanDiagram()
+            self.current_tab = self.configTabs.tabs_widget.currentWidget()
+            self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)        
+
+            if not hasattr(self, "ray_tracer"):
+                self.ray_tracer = RayTracer(self.lens_sequence)
+
+            num_rays_old = self.config.num_rays
+            self.config.num_rays = 31    
+            self.tangential_ray_data = self.ray_tracer.calculate_meridional_ray_data(self.lens_sequence, self.config)
+
+            # self.nonmeridional_ray_data = self.ray_tracer.calculate_nonmeridional_ray_data(self.lens_sequence, self.config)
+
+            self.display_interface = DisplayInterfaceRayfan(self.lens_sequence, self.config)
+
+            # IMPROVE: This should be a method of Raytracer: calculate_sagittal_rayfan()
+            # sagittal ray fan
+            # Initialize a sagittal ray fan which fills the aperture stop horizontally.
+            P_intersect = np.zeros((3,self.lens_sequence.num_surfs, self.config.num_rays, self.config.num_fields))
+            rayvecs = np.zeros((3,self.lens_sequence.num_surfs, self.config.num_rays, self.config.num_fields))
+            alpha = self.ray_tracer.marginal_ray_angle
+            for f in range(self.config.num_fields):    
+                gamma1_field = self.ray_tracer.u_chief[0,:]  # inclination angles
+                gamma3 = 0
+                gamma2 = [-alpha + 2*r*alpha/(self.config.num_rays-1) for r in range(self.config.num_rays)]
+                for r in range(self.config.num_rays):        
+                    P_intersect[0:3, 0, r, f] = np.array([0, self.config.obj_heights[f], self.lens_sequence.vertex[0]]) # object oriented along y-axis
+                    rayvecs[0:3, 0, r, f] = np.array([-sin(gamma2[r])*cos(gamma3), 
+                                                    -cos(gamma1_field[f])*sin(gamma2[r])*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2[r]), 
+                                                    -sin(gamma1_field[f])*sin(gamma2[r])*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2[r])])
+
+            P_intersect, rayvecs = raytrace_nonmeridional_rays(self.lens_sequence.vertex, self.lens_sequence.R, self.lens_sequence.n, P_intersect, rayvecs)
+            self.config.num_rays = num_rays_old # reset
+
+            self.rayFanDiagramWindow = RayFanDiagram(self.display_interface, self.tangential_ray_data, P_intersect)
             self.rayFanDiagramWindow.show()
         else:
             self.rayFanDiagramWindow.close()
@@ -735,13 +804,45 @@ class RaySpotDiagram(QWidget):
 class RayFanDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self):
+    def __init__(self, display_interface: DisplayInterfaceRayfan, tangential_ray_data, P_intersect):
         super().__init__()
-        self.setWindowTitle("Ray Fan Plot")
-        self.label = QLabel("Ray Fan Plot")
+        self.setWindowTitle("Transverse Ray Fan Plot")
+        self.display_interface = display_interface
+        self.tangential_ray_data = tangential_ray_data
+        self.P_intersect = P_intersect
+        self.num_surfs = self.display_interface.lens_sequence.num_surfs
+
         layout = QVBoxLayout()
-        layout.addWidget(self.label)
+        self.fig = self.display_interface.init_figure()
+        self.canvas = FigureCanvas(self.fig)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        self.surf_input = QDoubleSpinBox()
+        self.surf_input.setPrefix("surface: ")
+        self.surf_input.setDecimals(0)
+        self.surf_input.setMinimum(0)
+        self.surf_input.setMaximum(self.num_surfs-1)
+        self.surf_input.setValue(self.num_surfs-1)
+
+        layout.addWidget(self.surf_input)
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)        
         self.setLayout(layout)
+
+        # event handler
+        self.surf_input.valueChanged.connect(self.update_rayfan_diagram)
+
+        self.update_rayfan_diagram()
+
+    def update_rayfan_diagram(self):
+        if self.fig is not None:
+            for ax in self.fig.axes:
+                ax.clear()
+        surf = int(self.surf_input.value())
+        self.fig = self.display_interface.plot_rayfan(self.tangential_ray_data, self.P_intersect, surf=surf, fig=self.fig)
+        self.canvas.draw()
+        self.canvas.flush_events()
+
+
 
 class ModulationTransferFunctionDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."

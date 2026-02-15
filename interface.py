@@ -1,3 +1,4 @@
+import numpy as np
 from paraxial import ParaxialQuantities
 from lens import LensSequence
 from config import Config
@@ -121,6 +122,56 @@ class DisplayInterfaceRayspot(object):
             axs[f].plot(P_intersect[0,surf,:,f], P_intersect[1,surf,:,f] - y_CR, 'o', color=colors[f])
         fig.tight_layout()
         return fig
+
+class DisplayInterfaceRayfan(object):
+    def __init__(self, lens_sequence: LensSequence, config: Config):
+        self.lens_sequence = lens_sequence
+        self.config = config
+
+    def init_figure(self) -> Figure:
+        fig = Figure()
+        fig.set_size_inches(9,4)
+        fig.subplots(nrows=1, ncols=self.config.num_fields, squeeze=True)
+        fig.tight_layout(pad=4.0)
+        return fig
+    
+    def plot_rayfan(self, tangential_ray_data: MeridionalRayData, P_intersect: np.ndarray, surf: int, fig: Figure=None) -> Figure:
+        if fig is None:
+            fig = self.init_figure()
+        axs = fig.axes
+
+        for f in range(self.config.num_fields)[::-1]:            
+            # tangential ray fan
+            CHIEF_INDEX = tangential_ray_data.CHIEF_RAY_INDEX
+            y = tangential_ray_data.y[surf,:,f] - tangential_ray_data.y[surf,CHIEF_INDEX,f]
+            # We take the coordinate in the aperture stop as the pupil coordinate since the aperture stop and entrance pupil are conjugate planes.
+            Py = tangential_ray_data.y[self.lens_sequence.AS_surf,:,f] # chief ray height at aperture stop is zero by definition
+            # normalize
+            Py /= np.max(np.abs(Py))
+
+            # sagittal ray fan
+            x = P_intersect[0,surf,:,f] - 0.0 # should be symmetric about x=0
+            Px = P_intersect[0,self.lens_sequence.AS_surf,:,f]
+            Px /= np.max(np.abs(Px))
+
+            axs[f].set_ylabel(r"$y / x$"+f"\t [{self.config.lens_unit}]", loc="center")
+            axs[f].set_xlabel(r"$P_y / P_x$", loc="center")
+            axs[f].set_title(f"OBJ: {self.config.obj_heights[f]:.3f} {self.config.lens_unit}")
+            if f == 0:
+                line1, = axs[f].plot(Py, y, '-', label="tangential (y, P_y)")
+                line2, = axs[f].plot(Px, x, '--', label="sagittal (x, P_x)")
+            else:
+                axs[f].plot(Py, y, '-', label="tangential")
+                axs[f].plot(Px, x, '--', label="sagittal")
+            axs[f].grid(visible=True)
+            ylim = np.round(np.max(np.abs(axs[f].get_ylim())), decimals=3) # min scale is E-3 lens units
+            axs[f].set_ylim(bottom=-ylim, top=ylim)
+            axs[f].set_box_aspect(1.0)
+        
+            axs[0].legend(bbox_to_anchor=(0.4,0.08), loc="center left",  bbox_transform=fig.transFigure)
+
+        return fig
+
 
 
 class DisplayInterfaceSeidelDiagram(object):
