@@ -1,3 +1,2 @@
-- When ray tracing a ray bundle, each field positon should have its on marginal rays that are aimed at the 
-  non-paraxial entrance pupil. (12.12.2025)
-- 
+- Implement geometric modulation transfer function (MTF)
+- Implement propagation and display of Gaussian beams using ray tracing of two rays
