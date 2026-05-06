@@ -20,7 +20,6 @@ class Config():
         self.num_rays = 7        
         self.ON_AXIS_FIELD_INDEX = -1  # last index
         
-
     @property
     def EPD(self):
         return self._EPD

@@ -1,18 +1,12 @@
 import numpy as np
 from math import cos, sin
 from typing import Iterable, Tuple
-from utils import timer_func, RayIntersectionNotFoundError
+from utils import timer_func, RayIntersectionNotFoundError, ChiefRayNotFoundError
 from lens import LensSequence
 from config import Config
-from utils import ChiefRayNotFoundError
 
-# REMOVE
-import matplotlib.pyplot as plt
-from nonmeridional_rays import raytrace_nonmeridional_rays
-# REMOVE
-
-# __all__ = ["trace_tangential_ray"]
-
+__all__ = ["MeridionalRayData", "NonmeridionalRayData", "RayTracer",
+           "trace_tangential_ray", "trace_nonmeridional_rays", "find_chief_rays"]
 
 class MeridionalRayData(object):
     def __init__(self, num_surfs: int, num_rays: int, num_fields: int, y: np.ndarray, 
@@ -35,7 +29,6 @@ class NonmeridionalRayData(object):
         self.P_intersect = P_intersect
         self.rayvecs = rayvecs
         self.CHIEF_RAY_INDEX = 0
-
 
 class RayTracer(object):
     def __init__(self, lens_sequence: LensSequence):
@@ -195,7 +188,7 @@ class RayTracer(object):
         u_launch = self.u_chief[0,:]
         half_opening_angles = np.ones_like(u_launch) * self.marginal_ray_angle
         P_intersect, rayvecs = _init_rayvecs_at_object(u_launch, half_opening_angles)
-        P_intersect, rayvecs = raytrace_nonmeridional_rays(lens_sequence.vertex, lens_sequence.R, lens_sequence.n, P_intersect, rayvecs)        
+        P_intersect, rayvecs = trace_nonmeridional_rays(lens_sequence.vertex, lens_sequence.R, lens_sequence.n, P_intersect, rayvecs)        
 
         return NonmeridionalRayData(num_surfs=rayvecs.shape[1], num_rays=rayvecs.shape[2], num_fields=rayvecs.shape[3], 
                                     P_intersect=P_intersect, rayvecs=rayvecs)
@@ -330,6 +323,75 @@ def trace_tangential_ray(y_start: Iterable, u_start: Iterable, lens_sequence: Le
                 y[i-1,...] = yp + np.tan(u[i-1,...])*(lens_sequence.t[i-1] - zp)
 
     return y, u, z_sag, y_vertexplane
+
+
+@timer_func
+def trace_nonmeridional_rays(vertex, R, n, P_intersect, rayvecs):
+    """    
+    Trace rays that do not lie in the tangential plane spanned by the object height and the optical axis (= non-meridional rays).
+
+    :param vertex: Description
+    :param R: Description
+    :param n: Description
+    :param P_intersect: Description
+    :param rayvecs: Description
+    """
+    assert R.shape == n.shape
+    num_surfs = n.shape[0]
+    assert vertex.shape == (num_surfs,)
+    assert P_intersect.shape == rayvecs.shape
+    # num_rays = P_intersect.shape[2]
+    # num_fields = P_intersect.shape[3] 
+    # in the future: num_wavelengths = p_intersect.shape[4]
+    
+    dims = len(P_intersect.shape)-1
+
+    # P_intersect = np.transpose(P_intersect, axes=(0,2,3,1))
+    # rayvecs = np.transpose(rayvecs, axes=(0,2,3,1))
+
+    for i in range(1, num_surfs):
+        # Calculate the intersection point with surface i
+        xO, yO, zO = P_intersect[0:3,i-1,...]    
+        xr, yr, zr = rayvecs[0:3,i-1,...]
+
+        if np.abs(R[i]) != np.inf:
+            # spherical surface 
+            b = 2*xO*xr + 2*yO*yr + 2*(zO - (vertex[i]+R[i]))*zr
+            c = xO**2 + yO**2 + (zO-vertex[i])**2 - 2*(zO - vertex[i])*R[i]
+            if R[i] > 0:
+                alpha = 0.5*(-b - np.sqrt(b**2 - 4*c))
+            elif R[i] < 0:
+                alpha = 0.5*(-b + np.sqrt(b**2 - 4*c))
+        else:
+            # flat surface 
+            alpha = (vertex[i] - zO)/zr # zr is never zero by construction
+
+        if i==1:
+            print("vertex[1]=", vertex[i])
+            print("vertex[0]=", vertex[0])
+            print("zO=", zO[0,:])
+            print("zr=", zr[0,:])
+            print("alpha=", alpha[0,:])
+        P_intersect[0:3,i,...] = P_intersect[0:3,i-1,...] + alpha*rayvecs[0:3,i-1,...]
+
+        # Calculate the new normalized ray vector using Snell's law
+        if np.abs(R[i]) != np.inf:
+            N_pt = P_intersect[0:3,i,...] - np.array([0,0,vertex[i] + R[i]]).reshape((3,)+(1,)*(dims-1))
+            surface_norm_pt = N_pt / np.linalg.norm(N_pt, axis=0)
+            einsum_str = "ijklmno"[0:dims]+","+"ijklmno"[0:dims]+"->"+"ijklmno"[1:dims]
+            rn = np.einsum(einsum_str, rayvecs[0:3,i-1,...], surface_norm_pt[0:3,...]) # dot product over first axis
+            n_ratio = n[i-1]/n[i]
+            pref = -( np.sign(R[i])*np.sqrt(1-(n_ratio)**2 * (1 - rn**2)) + n_ratio*rn )
+            rayvecs[0:3,i,...] = pref*surface_norm_pt + n_ratio*rayvecs[0:3,i-1,...]    
+            assert np.isclose(np.linalg.norm(rayvecs[0:3,i,...], axis=0), 1.0, atol=1e-8).all(), f"ray vector not normalized"
+        else:
+            rayvecs[0:3,i,...] = rayvecs[0:3,i-1,...]
+
+    # undo reordering of axes
+    # P_intersect = np.transpose(P_intersect, axes=(0,3,1,2))
+    # rayvecs = np.transpose(rayvecs, axes=(0,3,1,2))
+
+    return P_intersect, rayvecs
 
 
 def find_chief_rays(lens_sequence: LensSequence, obj_heights: Iterable, 

@@ -1,16 +1,9 @@
-# TODO:
-# - visualize: plot paraxial focus and principal planes 
-# - plot Gaussian intensity profile and beam waist as a function of z together with waist and divergence rays
-# - Calculate position of nodal points if the index of refraction before and after the lens system is different.
-# - make n_air adjustable
 import numpy as np
 from typing import Tuple
+from dataclasses import dataclass
 
 from lens import LensSequence
 from config import Config
-
-from dataclasses import dataclass
-import matplotlib.pyplot as plt
 
 __all__ = ["ParaxialRaytracer", "ParaxialQuantities"]
 

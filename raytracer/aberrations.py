@@ -6,6 +6,7 @@ from typing import Tuple, Iterable
 
 from lens import LensSequence
 
+__all__ = ["Seidel3rd_aberrations"]
 
 class Aberrations(ABC):
     pass

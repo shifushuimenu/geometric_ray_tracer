@@ -2,7 +2,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Iterable, Tuple
 
-__about__ = ["LensSequence", "read_lens"]
+__all__ = ["LensSequence", "read_lens"]
 
 @dataclass(frozen=True)
 class LensSequence(object):

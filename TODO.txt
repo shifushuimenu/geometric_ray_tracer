@@ -3,3 +3,8 @@
 - chromatic aberrations, Seidel coefficiens in waves, additional quantities such as paraxial working F-number 
 - documentation (docstrings for Sphinx)
 - add tests and CI/CD
+
+Minor tasks:
+- make n_air adjustable
+- Calculate position of nodal points if the index of refraction before and after the lens system is different.
+

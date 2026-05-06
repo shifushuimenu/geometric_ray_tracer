@@ -1,9 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
-from utils import timer_func
 from typing import Iterable, Tuple, List
 
 from trace_ray import MeridionalRayData
