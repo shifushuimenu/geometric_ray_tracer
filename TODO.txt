@@ -1,4 +1,5 @@
 - Implement geometric modulation transfer function (MTF)
 - Implement propagation and display of Gaussian beams using ray tracing of two rays
+- chromatic aberrations, Seidel coefficiens in waves, additional quantities such as paraxial working F-number 
 - documentation (docstrings for Sphinx)
 - add tests and CI/CD
