@@ -18,7 +18,7 @@ params = {
 }
 
 
-class DisplayInterface:
+class DisplayInterface(object):
     def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: MeridionalRayData,
                  paraxial_quantities: ParaxialQuantities = None):        
         self.LS = lens_sequence
@@ -89,7 +89,7 @@ class DisplayInterface:
         return fig
     
 
-class DisplayInterfaceRayspot(object):
+class DisplayInterfaceRayspot(DisplayInterface):
     def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: NonmeridionalRayData):
         self.lens_sequence = lens_sequence
         self.config = config
@@ -123,7 +123,7 @@ class DisplayInterfaceRayspot(object):
         fig.tight_layout()
         return fig
 
-class DisplayInterfaceRayfan(object):
+class DisplayInterfaceRayfan(DisplayInterface):
     def __init__(self, lens_sequence: LensSequence, config: Config):
         self.lens_sequence = lens_sequence
         self.config = config
@@ -174,7 +174,7 @@ class DisplayInterfaceRayfan(object):
 
 
 
-class DisplayInterfaceSeidelDiagram(object):
+class DisplayInterfaceSeidelDiagram(DisplayInterface):
     def __init__(self, lens_sequence: LensSequence, config: Config, aberrations: Aberrations3rd) -> Figure:
         self.lens_sequence = lens_sequence 
         self.config = config

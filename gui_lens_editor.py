@@ -311,9 +311,9 @@ class LensEditor(QMainWindow):
 
             self.nonmeridional_ray_data = self.ray_tracer.calculate_nonmeridional_ray_data(self.lens_sequence, self.config)
 
-            self.display_interface = DisplayInterfaceRayspot(self.lens_sequence, self.config, self.nonmeridional_ray_data)
+            self.display_interface_rayspot = DisplayInterfaceRayspot(self.lens_sequence, self.config, self.nonmeridional_ray_data)
 
-            self.raySpotDiagramWindow = RaySpotDiagram(self.display_interface, self.nonmeridional_ray_data)
+            self.raySpotDiagramWindow = RaySpotDiagram(self.display_interface_rayspot, self.nonmeridional_ray_data)
             self.raySpotDiagramWindow.show()
         else:
             self.raySpotDiagramWindow.close()
@@ -333,7 +333,7 @@ class LensEditor(QMainWindow):
 
             # self.nonmeridional_ray_data = self.ray_tracer.calculate_nonmeridional_ray_data(self.lens_sequence, self.config)
 
-            self.display_interface = DisplayInterfaceRayfan(self.lens_sequence, self.config)
+            self.display_interface_rayfan = DisplayInterfaceRayfan(self.lens_sequence, self.config)
 
             # IMPROVE: This should be a method of Raytracer: calculate_sagittal_rayfan()
             # sagittal ray fan
@@ -354,7 +354,7 @@ class LensEditor(QMainWindow):
             P_intersect, rayvecs = raytrace_nonmeridional_rays(self.lens_sequence.vertex, self.lens_sequence.R, self.lens_sequence.n, P_intersect, rayvecs)
             self.config.num_rays = num_rays_old # reset
 
-            self.rayFanDiagramWindow = RayFanDiagram(self.display_interface, self.tangential_ray_data, P_intersect)
+            self.rayFanDiagramWindow = RayFanDiagram(self.display_interface_rayfan, self.tangential_ray_data, P_intersect)
             self.rayFanDiagramWindow.show()
         else:
             self.rayFanDiagramWindow.close()
@@ -374,9 +374,9 @@ class LensEditor(QMainWindow):
             self.lens_sequence = self.current_tab.get_lens_sequence_from_table(self.current_tab.table)        
             PQ = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
             aberrations = Seidel3rd_aberrations(PQ.y_chief, PQ.u_chief, PQ.y_marg, PQ.u_marg, self.lens_sequence)
-            self.display_interface = DisplayInterfaceSeidelDiagram(self.lens_sequence, self.config, aberrations)
+            self.display_interface_seidel = DisplayInterfaceSeidelDiagram(self.lens_sequence, self.config, aberrations)
 
-            self.SeidelWindow = SeidelAberrationCoefficientsDiagram(self.display_interface)
+            self.SeidelWindow = SeidelAberrationCoefficientsDiagram(self.display_interface_seidel)
             self.SeidelWindow.show()
         else:
             self.SeidelWindow.close()
