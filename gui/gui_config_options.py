@@ -1,3 +1,7 @@
+"""
+GUI widget for specifying global configuration parameters such as: entrance pupil diameter (EPD), 
+exit pupil diameter (XPD), image space NA, object space NA, field height, field angle, etc.
+"""
 from typing import List, Optional
 
 from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QComboBox, QLineEdit)
