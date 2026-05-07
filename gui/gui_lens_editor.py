@@ -10,7 +10,7 @@ from math import cos, sin
 from datetime import datetime
 from typing import List, Iterable
 
-from .interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+from gui.interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
 from raytracer.lens import LensSequence
 from raytracer.trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData, trace_nonmeridional_rays
 from raytracer.paraxial import ParaxialRaytracer

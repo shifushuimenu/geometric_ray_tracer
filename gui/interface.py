@@ -1,15 +1,15 @@
 import numpy as np
+from matplotlib.figure import Figure
+import matplotlib as mpl
+
 from raytracer.paraxial import ParaxialQuantities
 from raytracer.lens import LensSequence
 from raytracer.config import Config
 from raytracer.aberrations import Aberrations3rd
-from matplotlib.figure import Figure
 from raytracer.trace_ray import MeridionalRayData, NonmeridionalRayData
 from raytracer.plot import (plot_spherical_surfaces, 
                   plot_ray_bundles,
                   display_pupils_and_stops)
-
-import matplotlib as mpl
 
 # Put all plot parameters here: colors, linewidths
 params = {

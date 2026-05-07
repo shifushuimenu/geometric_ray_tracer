@@ -1,4 +1,6 @@
 *.dat 
-lens_files/
+data/*
+__pycache__/*
+gui/__pycache__/*
 *.sh
 workspace*
