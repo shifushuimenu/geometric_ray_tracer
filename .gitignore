@@ -2,5 +2,6 @@
 data/*
 __pycache__/*
 gui/__pycache__/*
+raytracer/__pycache__/*
 *.sh
 workspace*
