@@ -18,9 +18,9 @@ from raytracer.aberrations import Seidel3rd_aberrations
 
 
 from raytracer.config import Config
-from .gui_config_options import ConfigOptionsEntry
+from gui.config_options import ConfigOptionsEntry
 
-from .gui_table_item_delegate import FloatDelegate
+from gui.table_item_delegate import FloatDelegate
 
 os.environ["QT_API"] = "PyQt6"
 
