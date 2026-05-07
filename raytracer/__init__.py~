@@ -1,0 +1,8 @@
+"""Geometric raytracer
+
+Simple raytracer for geometric optics, tested against ZemaxOptics Studio.
+"""
+
+from . import lens, config, aberrations, paraxial, plot, trace_ray, utils
+
+__version__ = "1.0.0"

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple, Iterable
 
-from lens import LensSequence
+from raytracer.lens import LensSequence
 
 __all__ = ["Seidel3rd_aberrations"]
 

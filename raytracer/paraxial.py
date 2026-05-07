@@ -2,8 +2,8 @@ import numpy as np
 from typing import Tuple
 from dataclasses import dataclass
 
-from lens import LensSequence
-from config import Config
+from raytracer.lens import LensSequence
+from raytracer.config import Config
 
 __all__ = ["ParaxialRaytracer", "ParaxialQuantities"]
 

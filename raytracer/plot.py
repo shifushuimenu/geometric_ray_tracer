@@ -4,10 +4,10 @@ import matplotlib as mpl
 from matplotlib.figure import Figure
 from typing import Iterable, Tuple, List
 
-from trace_ray import MeridionalRayData
-from config import Config
-from paraxial import ParaxialQuantities
-from lens import LensSequence
+from raytracer.trace_ray import MeridionalRayData
+from raytracer.config import Config
+from raytracer.paraxial import ParaxialQuantities
+from raytracer.lens import LensSequence
 
 __all__ = ["plot_paraxial_surfaces", "plot_ray", "plot_spherical_surfaces", "plot_ray_bundles", "display_pupils_and_stops"]
 

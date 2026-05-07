@@ -1,9 +1,11 @@
+"Raytracing of tangential and non-meridional rays, determination of chief ray using binary search"
 import numpy as np
 from math import cos, sin
 from typing import Iterable, Tuple
-from utils import timer_func, RayIntersectionNotFoundError, ChiefRayNotFoundError
-from lens import LensSequence
-from config import Config
+
+from raytracer.utils import timer_func, RayIntersectionNotFoundError, ChiefRayNotFoundError
+from raytracer.lens import LensSequence
+from raytracer.config import Config
 
 __all__ = ["MeridionalRayData", "NonmeridionalRayData", "RayTracer",
            "trace_tangential_ray", "trace_nonmeridional_rays", "find_chief_rays"]

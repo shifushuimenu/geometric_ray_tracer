@@ -1,11 +1,11 @@
 import numpy as np
-from paraxial import ParaxialQuantities
-from lens import LensSequence
-from config import Config
-from aberrations import Aberrations3rd
+from raytracer.paraxial import ParaxialQuantities
+from raytracer.lens import LensSequence
+from raytracer.config import Config
+from raytracer.aberrations import Aberrations3rd
 from matplotlib.figure import Figure
-from trace_ray import MeridionalRayData, NonmeridionalRayData
-from plot import (plot_spherical_surfaces, 
+from raytracer.trace_ray import MeridionalRayData, NonmeridionalRayData
+from raytracer.plot import (plot_spherical_surfaces, 
                   plot_ray_bundles,
                   display_pupils_and_stops)
 

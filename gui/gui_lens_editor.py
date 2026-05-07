@@ -10,20 +10,17 @@ from math import cos, sin
 from datetime import datetime
 from typing import List, Iterable
 
-from interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
-from lens import LensSequence
-from trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData
-from paraxial import ParaxialRaytracer, ParaxialQuantities
-from aberrations import Seidel3rd_aberrations, Aberrations3rd
+from .interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+from raytracer.lens import LensSequence
+from raytracer.trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData, trace_nonmeridional_rays
+from raytracer.paraxial import ParaxialRaytracer
+from raytracer.aberrations import Seidel3rd_aberrations
 
-# IMPROVE: raytracing non-meridional rays should be a method of the raytracer
-from nonmeridional_rays import raytrace_nonmeridional_rays
-# END IMPROVE
 
-from config import Config
-from gui_config_options import ConfigOptionsEntry
+from raytracer.config import Config
+from .gui_config_options import ConfigOptionsEntry
 
-from gui_table_item_delegate import FloatDelegate
+from .gui_table_item_delegate import FloatDelegate
 
 os.environ["QT_API"] = "PyQt6"
 
@@ -57,6 +54,9 @@ from matplotlib.backends.backend_qtagg import (
     FigureCanvasQTAgg as FigureCanvas,
     NavigationToolbar2QT as NavigationToolbar
 )
+
+icons_dir = os.path.join(os.path.dirname(__file__), "icons/")
+print("icons dir=", icons_dir)
 
 plt.ion()
 
@@ -138,10 +138,10 @@ class LensEditor(QMainWindow):
         toolbar = QToolBar("Main Toolbar", self)
         toolbar.setStyleSheet("QToolBar { background-color: white; border: 2px solid black; }")
         toolbar.setIconSize(QSize(60, 60))
-        raytrace_action = QAction(QIcon("icons/raytrace_icon.png"), "&Raytrace", self)        
-        spot_action = QAction(QIcon("icons/ray_spot_diagram_icon.png"), "&Ray Spot Diagram", self)
-        rayfan_action = QAction(QIcon("icons/rayfan_icon.png"), "&Ray Fan Plot", self)
-        Seidel_coefficients_action = QAction(QIcon("icons/Seidel_coeffs_icon.png"), "&Seidel Diagram", self)
+        raytrace_action = QAction(QIcon(os.path.join(icons_dir,"raytrace_icon.png")), "&Raytrace", self)        
+        spot_action = QAction(QIcon(os.path.join(icons_dir,"ray_spot_diagram_icon.png")), "&Ray Spot Diagram", self)
+        rayfan_action = QAction(QIcon(os.path.join(icons_dir,"rayfan_icon.png")), "&Ray Fan Plot", self)
+        Seidel_coefficients_action = QAction(QIcon(os.path.join(icons_dir,"Seidel_coeffs_icon.png")), "&Seidel Diagram", self)
         MTF_action = QAction(QIcon(), "&Geometric MTF", self)        
         Gaussian_beam_action = QAction(QIcon(), "&Gaussian Beam", self)        
 
@@ -884,6 +884,6 @@ class GaussianBeamDiagram(QWidget):
         self.setLayout(layout)
 
 
-app = QApplication(sys.argv)
-w = LensEditor()
-app.exec()
+# app = QApplication(sys.argv)
+# w = LensEditor()
+# app.exec()
