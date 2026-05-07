@@ -37,16 +37,22 @@ class DisplayInterface(object):
         self.objects_on_screen = dict()
         self.highlighted_surface_i = None
 
-    def init_figure(self) -> Figure:
-        fig = Figure()
-        fig.set_size_inches(12,6)
-        fig.set_layout_engine("tight")
-        ax = fig.subplots(1,1)
+    def init_figure(self, fig: Figure=None) -> Figure:
+        if fig is None:
+            fig = Figure()
+            fig.set_size_inches(12,6)
+            fig.set_layout_engine("tight")
+            ax = fig.subplots(1,1)
+        fig = self.plot_labels_and_optical_axis(fig)
+        return fig
+    
+    def plot_labels_and_optical_axis(self, fig: Figure) -> Figure:
+        ax = fig.get_axes()[0]
         # plot optical axis
         ax.axhline(y=0, color="k", linestyle="--")
         ax.set_xlabel("mm")
         ax.set_ylabel("mm")
-        return fig 
+        return fig         
 
     def plot_spherical_surfaces(self, fig: Figure) -> Figure:
         fig, surface_segments, edge_segments = plot_spherical_surfaces(self.LS.vertex, self.LS.R, self.LS.n, 

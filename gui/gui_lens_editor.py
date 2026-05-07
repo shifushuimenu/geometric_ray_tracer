@@ -273,22 +273,22 @@ class LensEditor(QMainWindow):
     def showRaytraceDiagram(self):
 
         print("self.config.max_obj_height=", self.config.max_obj_height)
+        
+        self.lens_sequence = self.get_lens_sequence()
 
-        if self.raytraceWindow is None:
-            self.lens_sequence = self.get_lens_sequence()
+        # paraxial ray tracing 
+        paraxial_quantities = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
+                    
+        self.ray_tracer = RayTracer(self.lens_sequence)
+        self.ray_data = self.ray_tracer.calculate_meridional_ray_data(self.lens_sequence, self.config)
 
-            # paraxial ray tracing 
-            paraxial_quantities = ParaxialRaytracer(self.lens_sequence).paraxial_quantities(self.config)
-                        
-            self.ray_tracer = RayTracer(self.lens_sequence)
-            self.ray_data = self.ray_tracer.calculate_meridional_ray_data(self.lens_sequence, self.config)
+        # Using the ray data, update the clear apertures in the lens editor.
+        self.current_tab.update_clear_apertures(self.current_tab.table, self.ray_data.clear_apertures)            
 
-            # Using the ray data, update the clear apertures in the lens editor.
-            self.current_tab.update_clear_apertures(self.current_tab.table, self.ray_data.clear_apertures)            
+        self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data, paraxial_quantities)
 
-            self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data, paraxial_quantities)            
+        if self.raytraceWindow is None:        
             self.raytraceWindow = RaytraceDiagram(self.display_interface, self.ray_data)
-
             self.raytraceWindow.show()
         else:
             self.raytraceWindow.update_plot(self.display_interface, self.ray_data)
@@ -741,17 +741,24 @@ class RaytraceDiagram(LayoutDiagram):
         print("class RaytraceDiagram called __init__()")
 
     def highlight_surface(self, surf_nr):
+        # This function is duplicate. The used version is in interface.py
+        # IMPROVE: - change color to entire linestyle
+        #          - In a new config, surfaces are not highlighted when pressing Enter on the corresponding line.
         self.fig = self.display_interface.highlight_surface(surf_nr)
         self.canvas.draw()
         self.canvas.flush_events()
 
     def update_plot(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
-        print("class RaytraceDiagram called update_plot()")
-        super().__init__(display_interface)
-        self.display_interface = display_interface
-        self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
-        print("id(self.fig)=", id(self.fig), id(self.canvas.figure))
-        print("overwrote self.fig")
+        canvas_ax = self.canvas.figure.get_axes()[0]
+        xlim_old = canvas_ax.get_xlim()
+        ylim_old = canvas_ax.get_ylim()
+        # erase and replot preserving limits
+        canvas_ax.cla()
+        self.fig = display_interface.plot_labels_and_optical_axis(self.canvas.figure)
+        self.fig = display_interface.plot_spherical_surfaces(self.fig)
+        self.fig = display_interface.plot_ray_bundles(ray_data, self.fig)
+        canvas_ax.set_xlim(*xlim_old)
+        canvas_ax.set_ylim(*ylim_old)
         self.canvas.draw()        
         self.canvas.flush_events()        
 
