@@ -292,6 +292,7 @@ class LensEditor(QMainWindow):
 
             self.raytraceWindow.show()
         else:
+            # self.raytraceWindow.update_plot(self.display_interface, self.ray_data)
             self.raytraceWindow.close()
             self.raytraceWindow = None
 
@@ -736,12 +737,23 @@ class RaytraceDiagram(LayoutDiagram):
 
         self.setWindowTitle("Layout")
         self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
+        print("id(self.fig)=", id(self.fig))
         self.canvas.draw()        
         self.canvas.flush_events()
+        print("class RaytraceDiagram called __init__()")
 
     def highlight_surface(self, surf_nr):
         self.fig = self.display_interface.highlight_surface(surf_nr)
         self.canvas.draw()
+        self.canvas.flush_events()
+
+    def update_plot(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
+        print("class RaytraceDiagram called update_plot()")
+        self.display_interface = display_interface
+        self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
+        print("id(self.fig)=", id(self.fig))
+        print("overwrote self.fig")
+        self.canvas.draw()        
         self.canvas.flush_events()        
 
 
