@@ -1,3 +1,11 @@
+"""
+Interface between the lens sequence and ray tracing data on the one hand 
+and matplotlib figures that will be registered with a canvas of the GUI
+on the other hand.
+
+  (ray tracer, lens sequence) <-->     interface        <--> GUI
+                                   (matplotlib figures) 
+"""
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib as mpl

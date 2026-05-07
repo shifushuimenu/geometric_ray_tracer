@@ -10,16 +10,15 @@ from math import cos, sin
 from datetime import datetime
 from typing import List, Iterable
 
-from gui.interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+
 from raytracer.lens import LensSequence
 from raytracer.trace_ray import RayTracer, MeridionalRayData, NonmeridionalRayData, trace_nonmeridional_rays
 from raytracer.paraxial import ParaxialRaytracer
 from raytracer.aberrations import Seidel3rd_aberrations
-
-
 from raytracer.config import Config
-from gui.config_options import ConfigOptionsEntry
 
+from gui.interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+from gui.config_options import ConfigOptionsEntry
 from gui.table_item_delegate import FloatDelegate
 
 os.environ["QT_API"] = "PyQt6"
@@ -292,9 +291,10 @@ class LensEditor(QMainWindow):
 
             self.raytraceWindow.show()
         else:
-            # self.raytraceWindow.update_plot(self.display_interface, self.ray_data)
-            self.raytraceWindow.close()
-            self.raytraceWindow = None
+            self.raytraceWindow.update_plot(self.display_interface, self.ray_data)
+            self.raytraceWindow.show()
+            # self.raytraceWindow.close()
+            # self.raytraceWindow = None
 
     def showPupilsDiagram(self):
         if self.raytraceWindow is not None:
@@ -712,8 +712,9 @@ class LayoutDiagram(QWidget):
     def __init__(self, display_interface: DisplayInterface):
         super().__init__()
         self.display_interface = display_interface
-        # Create the Figure and Canvas
+        # Create the Figure and and register it with the Canvas object
         self.fig = self.display_interface.init_figure()
+        self.fig = self.display_interface.plot_spherical_surfaces(self.fig)
         self.canvas = FigureCanvas(self.fig)
 
         # Optional toolbar
@@ -724,9 +725,6 @@ class LayoutDiagram(QWidget):
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
         self.setLayout(layout)        
-
-        # IMPROVE: AttributeError: 'DisplayInterfaceRayspot' object has no attribute 'plot_spherical_surfaces'
-        self.fig = self.display_interface.plot_spherical_surfaces(self.fig)
 
 
 class RaytraceDiagram(LayoutDiagram):
@@ -749,9 +747,10 @@ class RaytraceDiagram(LayoutDiagram):
 
     def update_plot(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
         print("class RaytraceDiagram called update_plot()")
+        super().__init__(display_interface)
         self.display_interface = display_interface
         self.fig = self.display_interface.plot_ray_bundles(ray_data, self.fig)
-        print("id(self.fig)=", id(self.fig))
+        print("id(self.fig)=", id(self.fig), id(self.canvas.figure))
         print("overwrote self.fig")
         self.canvas.draw()        
         self.canvas.flush_events()        
