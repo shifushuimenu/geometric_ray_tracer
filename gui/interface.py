@@ -26,9 +26,9 @@ params = {
 }
 
 
-class DisplayInterface(object):
+class DisplayInterfaceRaytrace(object):
     def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: MeridionalRayData,
-                 paraxial_quantities: ParaxialQuantities = None):        
+                 paraxial_quantities: ParaxialQuantities = None) -> None:        
         self.LS = lens_sequence
         self.config = config        
         self.RD = ray_data
@@ -68,7 +68,8 @@ class DisplayInterface(object):
     def highlight_surface(self, i):
         # IMPROVE: - change color to entire linestyle
         #          - In a new config, surfaces are not highlighted when pressing Enter on the corresponding line.
-        """Highlight the surface with index i with a given color"""            
+        """Highlight the surface with index i with a given color""" 
+        print(f"DisplayInterfaceRaytracer called highlight_surface(), id={id(self)}")
         if "surfaces" in self.objects_on_screen:
             if self.highlighted_surface_i is not None:
                 #  reset 
@@ -103,7 +104,7 @@ class DisplayInterface(object):
         return fig
     
 
-class DisplayInterfaceRayspot(DisplayInterface):
+class DisplayInterfaceRayspot(object):
     def __init__(self, lens_sequence: LensSequence, config: Config, ray_data: NonmeridionalRayData):
         self.lens_sequence = lens_sequence
         self.config = config
@@ -137,7 +138,7 @@ class DisplayInterfaceRayspot(DisplayInterface):
         fig.tight_layout()
         return fig
 
-class DisplayInterfaceRayfan(DisplayInterface):
+class DisplayInterfaceRayfan(object):
     def __init__(self, lens_sequence: LensSequence, config: Config):
         self.lens_sequence = lens_sequence
         self.config = config
@@ -187,8 +188,7 @@ class DisplayInterfaceRayfan(DisplayInterface):
         return fig
 
 
-
-class DisplayInterfaceSeidelDiagram(DisplayInterface):
+class DisplayInterfaceSeidelDiagram(object):
     def __init__(self, lens_sequence: LensSequence, config: Config, aberrations: Aberrations3rd) -> Figure:
         self.lens_sequence = lens_sequence 
         self.config = config

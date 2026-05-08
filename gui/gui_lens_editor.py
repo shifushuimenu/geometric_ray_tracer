@@ -17,7 +17,7 @@ from raytracer.paraxial import ParaxialRaytracer
 from raytracer.aberrations import Seidel3rd_aberrations
 from raytracer.config import Config
 
-from gui.interface import DisplayInterface, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+from gui.interface import DisplayInterfaceRaytrace, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
 from gui.config_options import ConfigOptionsEntry
 from gui.table_item_delegate import FloatDelegate
 
@@ -285,7 +285,7 @@ class LensEditor(QMainWindow):
         # Using the ray data, update the clear apertures in the lens editor.
         self.current_tab.update_clear_apertures(self.current_tab.table, self.ray_data.clear_apertures)            
 
-        self.display_interface = DisplayInterface(self.lens_sequence, self.config, self.ray_data, paraxial_quantities)
+        self.display_interface = DisplayInterfaceRaytrace(self.lens_sequence, self.config, self.ray_data, paraxial_quantities)
 
         if self.raytraceWindow is None:        
             self.raytraceWindow = RaytraceDiagram(self.display_interface, self.ray_data)
@@ -352,7 +352,7 @@ class LensEditor(QMainWindow):
                                                     -cos(gamma1_field[f])*sin(gamma2[r])*sin(gamma3) - sin(gamma1_field[f])*cos(gamma2[r]), 
                                                     -sin(gamma1_field[f])*sin(gamma2[r])*sin(gamma3) + cos(gamma1_field[f])*cos(gamma2[r])])
 
-            P_intersect, rayvecs = raytrace_nonmeridional_rays(self.lens_sequence.vertex, self.lens_sequence.R, self.lens_sequence.n, P_intersect, rayvecs)
+            P_intersect, rayvecs = trace_nonmeridional_rays(self.lens_sequence.vertex, self.lens_sequence.R, self.lens_sequence.n, P_intersect, rayvecs)
             self.config.num_rays = num_rays_old # reset
 
             self.rayFanDiagramWindow = RayFanDiagram(self.display_interface_rayfan, self.tangential_ray_data, P_intersect)
@@ -645,9 +645,12 @@ class LensEditorConfigBase(QWidget):
             # self.parent.raytraceWindow.highlight_surface(row)
 
         if hasattr(self.parent,'raytraceWindow'):
+            print(f"{self.parent} has attribue `raytraceWindow`={self.parent.raytraceWindow}")
             if self.parent.raytraceWindow is not None:
                 print("self.parent.raytraceWindow=", self.parent.raytraceWindow)
                 self.parent.raytraceWindow.highlight_surface(row)
+        else:
+            print(f"{self.parent} has no attribue `raytraceWindow`")
 
     # def on_item_changed(self, item):
     #     row = item.row()
@@ -709,7 +712,7 @@ class LensEditorConfig(LensEditorConfigBase):
 
 class LayoutDiagram(QWidget):
 
-    def __init__(self, display_interface: DisplayInterface):
+    def __init__(self, display_interface: DisplayInterfaceRaytrace):
         super().__init__()
         self.display_interface = display_interface
         # Create the Figure and and register it with the Canvas object
@@ -730,7 +733,7 @@ class LayoutDiagram(QWidget):
 class RaytraceDiagram(LayoutDiagram):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
+    def __init__(self, display_interface: DisplayInterfaceRaytrace, ray_data: MeridionalRayData):
         super().__init__(display_interface)
 
         self.setWindowTitle("Layout")
@@ -748,7 +751,8 @@ class RaytraceDiagram(LayoutDiagram):
         self.canvas.draw()
         self.canvas.flush_events()
 
-    def update_plot(self, display_interface: DisplayInterface, ray_data: MeridionalRayData):
+    def update_plot(self, display_interface: DisplayInterfaceRaytrace, ray_data: MeridionalRayData):
+        self.display_interface = display_interface
         canvas_ax = self.canvas.figure.get_axes()[0]
         xlim_old = canvas_ax.get_xlim()
         ylim_old = canvas_ax.get_ylim()
@@ -764,7 +768,7 @@ class RaytraceDiagram(LayoutDiagram):
 
 
 class PupilsDiagram(LayoutDiagram):
-    def __init__(self, display_interface: DisplayInterface):
+    def __init__(self, display_interface: DisplayInterfaceRaytrace):
         super().__init__(display_interface)
 
         self.setWindowTitle("Paraxial Entrance and Exit Pupils")
