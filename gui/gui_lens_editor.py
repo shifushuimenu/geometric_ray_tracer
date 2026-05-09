@@ -171,7 +171,10 @@ class LensEditor(QMainWindow):
     # Event handlers
     # ================
     def open_file_handler(self):
-        filename, _ = QFileDialog.getOpenFileName(self, filter="*.txt")
+        default_dir = os.path.join(os.path.dirname(__file__), "..", "data/lens_files")
+        if not os.path.exists(default_dir):
+            default_dir = ""
+        filename, _ = QFileDialog.getOpenFileName(self, directory=default_dir, filter="*.txt;;*.lens")
         if filename:
             print("opening file %s"%(filename))
             self.configTabs.read_from_file(filename)
