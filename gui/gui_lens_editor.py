@@ -17,7 +17,9 @@ from raytracer.paraxial import ParaxialRaytracer
 from raytracer.aberrations import Seidel3rd_aberrations
 from raytracer.config import Config
 
-from gui.interface import DisplayInterfaceRaytrace, DisplayInterfaceRayspot, DisplayInterfaceRayfan, DisplayInterfaceSeidelDiagram
+from gui.interface import (
+    DisplayInterfaceRaytrace, DisplayInterfaceRayspot, DisplayInterfaceRayfan, 
+    DisplayInterfaceSeidelDiagram, DisplayInterfaceGeometricMTF )
 from gui.config_options import ConfigOptionsEntry
 from gui.table_item_delegate import FloatDelegate
 
@@ -153,7 +155,7 @@ class LensEditor(QMainWindow):
         self.SeidelWindow = None
         Seidel_coefficients_action.triggered.connect(self.showSeidelAberrationCoefficientsDiagram)
         self.MTFWindow = None
-        MTF_action.triggered.connect(self.showModulationTransferFunctionDiagram)
+        MTF_action.triggered.connect(self.showMTFDiagram)
         self.GaussianBeamWindow = None
         Gaussian_beam_action.triggered.connect(self.showGaussianBeamDiagram)
 
@@ -323,6 +325,17 @@ class LensEditor(QMainWindow):
             self.raySpotDiagramWindow.close()
             self.raySpotDiagramWindow = None
 
+    def showGeometricMTFDiagram(self):
+        if self.geometricMTFDiagramWindow is None:
+
+            self.ray_spot_data = self.ray_tracer.calculate_nonmeridional_ray_data(self.lens_sequence, self.config)
+
+            self.geometricMTFDiagramWindow = GeometricMTFDiagram(self.display_interface_geometricMTF, self.ray_spot_data)
+            self.geometricMTFDiagramWindow.show()
+        else:
+            self.geometricMTFDiagramWindow.close()
+            self.geometricMTFDiagramWindow = None
+
     def showRayFanDiagram(self):
         if self.rayFanDiagramWindow is None:
             self.current_tab = self.configTabs.tabs_widget.currentWidget()
@@ -364,9 +377,10 @@ class LensEditor(QMainWindow):
             self.rayFanDiagramWindow.close()
             self.rayFanDiagramWindow = None
 
-    def showModulationTransferFunctionDiagram(self):
+    def showMTFDiagram(self):
         if self.MTFWindow is None:
-            self.MTFWindow = ModulationTransferFunctionDiagram()
+            self.display_interface_geometricMTF = DisplayInterfaceGeometricMTF()
+            self.MTFWindow = GeometricMTFDiagram(display_interface = self.display_interface_geometricMTF, rayspot_data = None)
             self.MTFWindow.show()
         else:
             self.MTFWindow.close()
@@ -713,6 +727,7 @@ class LensEditorConfig(LensEditorConfigBase):
 
         self._set_table_entry_settings()
 
+
 class LayoutDiagram(QWidget):
 
     def __init__(self, display_interface: DisplayInterfaceRaytrace):
@@ -782,7 +797,6 @@ class PupilsDiagram(LayoutDiagram):
         textbrowser = QTextBrowser(self)
         textbrowser.insertPlainText(self.display_interface.PQ.__repr__())
         self.layout().addWidget(textbrowser)
-
 
 
 class RaySpotDiagram(QWidget):
@@ -869,15 +883,28 @@ class RayFanDiagram(QWidget):
 
 
 
-class ModulationTransferFunctionDiagram(QWidget):
+class GeometricMTFDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self):
+    def __init__(self, display_interface: DisplayInterfaceGeometricMTF, rayspot_data: NonmeridionalRayData):
         super().__init__()
-        self.label = QLabel("MTF")
+        self.setWindowTitle("Geometric Modulation Tranfer Function (MTF)")
+
+        self.fig = Figure(figsize=(9,6), facecolor="orange", edgecolor="black", linewidth=10, layout="constrained")
+
+        self.canvas = FigureCanvas(self.fig)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.label)
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)
         self.setLayout(layout)
+
+        self.fig = display_interface.plot_MTF(3, self.fig)
+
+        # self.canvas.draw()
+        # self.canvas.flush_events()
+
 
 class SeidelAberrationCoefficientsDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."

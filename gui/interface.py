@@ -245,3 +245,36 @@ class DisplayInterfaceSeidelDiagram(object):
         fig.axes[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5, fontsize=15)
 
         return fig
+
+
+class DisplayInterfaceGeometricMTF(object):
+    
+    def __init__(self):
+        pass
+
+    def plot_MTF(self, num_fields: int, fig: Figure) -> Figure:
+
+        # MTF.py:
+        # For each field position:
+        # 1. plot diffraction-limited MTF (calculate it taking into account the defocus from the paraxial focus)
+        # 2. plot MTF for a sinusoidal pattern (aligned in x- or y-direction)
+        #    plot MTF for a square (bar) test pattern
+        # 3. Plot the line spread function in x- and y-direction
+        # For testing purposes, show the rayspot diagram from which the line spread function is derived.
+
+        axs = fig.subplots(2, num_fields)
+        for f in range(num_fields):
+            NA = 1.0  # numerical aperture
+            wavelength = 456e-6 # wavelength in millimeters
+            # nu is the spatial frequency of the test pattern in cycles per millimeter
+            nu0 = 2*NA/wavelength # cut-off spatial frequency
+            phi = lambda nu : np.arccos(wavelength*nu/(2*NA))
+            # Ideal MTF for a spherical aperture and a sinusoidal test pattern
+            MTF_difflimited_sinus = lambda nu : (2.0/np.pi)*(phi(nu) - np.cos(phi(nu))*np.sin(phi(nu)))
+            nu_range = np.linspace(0, nu0, 100)
+            axs[0,f].plot(nu_range/nu0, MTF_difflimited_sinus(nu_range), label="diffraction limited")
+            axs[0,f].set_xlabel(r"$\nu/\nu_0$")
+            axs[0,f].grid(visible=True, which='major')
+            axs[0,f].legend(loc="best")
+
+        return fig
