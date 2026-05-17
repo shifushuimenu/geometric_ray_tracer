@@ -3,19 +3,18 @@ import numpy as np
 from typing import Tuple
 from scipy.integrate import simpson
 from scipy.special import jv
-import matplotlib.pyplot as plt
 
-def line_spread_function(coords, bins, magnification=1.0, smoothen=False):
-
-    coords = np.asarray(coords)
-    coords = (coords - coords.mean())*magnification
-    hist, bin_edges = np.histogram(coords, bins)
+def line_spread_function(xs, bins, magnification=1.0):
+    """Binning of a one-dimensional point cloud."""
+    xs = np.asarray(xs)
+    xs = (xs - xs.mean())*magnification
+    hist, bin_edges = np.histogram(xs, bins)
     centers = bin_edges[0:-1] + (bin_edges[1:] - bin_edges[0:-1])/2.0
 
     return centers, hist
 
 def cutoff_frequency(NA: float, wavelength: float) -> float:
-    """Maximum spatial frequence (in lines per mm= that can be resolved due to diffraction.
+    """Maximum spatial frequency (in lines per mm) that can be resolved due to diffraction.
     This is the limiting resolution for an aberration-free system.
     
     Args:
@@ -29,7 +28,8 @@ def cutoff_frequency(NA: float, wavelength: float) -> float:
     return nu0
 
 def geometric_MTF(point_cloud: np.ndarray, NA: float, wavelength: float, test_target: str="sinusoidal") -> Tuple:
-    """The geometric MTF is obtained by convolving the imaged (=magnified) test pattern with the geometric line spread function."""
+    """The geometric MTF is obtained by convolving the imaged (=magnified) test pattern with the geometric 
+    line spread function."""
     point_cloud = np.asarray(point_cloud)
     nu0 = cutoff_frequency(NA, wavelength)
     nu = np.linspace(0, nu0, 1000)
