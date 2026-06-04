@@ -1,4 +1,4 @@
-# This is work in progress.
+# This is work in progress, many improvements are necessary ...
 ## Overall Layout
 - In the gui directory, create a config.py file which holds the default path to the directory 
   with lens files and other global settings, such as locale. 
