@@ -9,7 +9,8 @@
   to avoid aliasing, which occurs when the resolution of the line spread function is coarser than 
   the test pattern.
 
-## Implement propagation and display of Gaussian beams using ray tracing of two rays**
+## Gaussian beams and Gausslets
+- Implement propagation and display of Gaussian beams using ray tracing of two rays
 
 ## Chromatic aberrations
 - A lens file (JSON) should contain a setup part specifying (fields, wavelengths and aperture)
