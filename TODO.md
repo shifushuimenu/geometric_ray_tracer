@@ -3,7 +3,7 @@
 - In the gui directory, create a config.py file which holds the default path to the directory 
   with lens files and other global settings, such as locale. 
 
-## Implement geometric modulation transfer function (MTF)
+## FFT modulation transfer function (MTF)
 - The bin size in the calculation of the line spread function as a histogram 
   must be adjusted based on the diffraction-limited resolution, that is the cut-off frequency,
   to avoid aliasing, which occurs when the resolution of the line spread function is coarser than 
