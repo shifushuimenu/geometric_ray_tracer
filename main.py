@@ -5,4 +5,4 @@ from gui.gui_lens_editor import LensEditor
 
 app = QApplication(sys.argv)
 w = LensEditor()
-app.exec()
+sys.exit(app.exec())

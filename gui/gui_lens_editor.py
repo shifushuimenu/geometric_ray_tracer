@@ -378,9 +378,33 @@ class LensEditor(QMainWindow):
             self.rayFanDiagramWindow = None
 
     def showMTFDiagram(self):
+        # IMPROVE: This part should be moved to interface.py
+        from raytracer.MTF import geometric_MTF, diffraction_limited_MTF
         if self.MTFWindow is None:
-            self.display_interface_geometricMTF = DisplayInterfaceGeometricMTF()
-            self.MTFWindow = GeometricMTFDiagram(display_interface = self.display_interface_geometricMTF, rayspot_data = None)
+
+            if not hasattr(self, "ray_tracer"):
+                raise ValueError("Ray tracer object has not been initialized yet. Please click 'Raytrace' first.")
+                # self.ray_tracer = RayTracer(self.get_lens_sequence())
+
+            # IMPROVE: This part should be moved to interface.py
+            lens_sequence = self.get_lens_sequence()
+            PQ = ParaxialRaytracer(lens_sequence).paraxial_quantities(self.config)
+            NA = lens_sequence.n[0]*np.sin(np.abs(PQ.marginal_ray_angle)) # IMPROVE: introduce numerical aperture as a class member
+            self.nonmeridional_ray_data = self.ray_tracer.calculate_nonmeridional_ray_data(lens_sequence, self.config)
+            geometric_MTFs = []
+            difflim_MTFs = []
+            line_spread_functions = []
+            for f in range(self.config.num_fields):                
+                LSF, OTF, MTF = geometric_MTF(point_cloud=self.nonmeridional_ray_data.P_intersect[0:2,-1,:,f].T, magnification=PQ.magnification, 
+                              NA=NA, wavelength=1030e-6) 
+                line_spread_functions.append(LSF)
+                geometric_MTFs.append(MTF)
+                difflim_MTF = diffraction_limited_MTF(NA=NA, wavelength=1030e-6, aperture_shape="circular")
+                difflim_MTFs.append(difflim_MTF)
+            # END IMPROVE
+
+            self.display_interface_geometricMTF = DisplayInterfaceGeometricMTF(geometric_MTFs, difflim_MTFs, line_spread_functions)
+            self.MTFWindow = GeometricMTFDiagram(display_interface = self.display_interface_geometricMTF)
             self.MTFWindow.show()
         else:
             self.MTFWindow.close()
@@ -886,11 +910,11 @@ class RayFanDiagram(QWidget):
 class GeometricMTFDiagram(QWidget):
     "This widget has no parent and will appear as a free floating window."
 
-    def __init__(self, display_interface: DisplayInterfaceGeometricMTF, rayspot_data: NonmeridionalRayData):
+    def __init__(self, display_interface: DisplayInterfaceGeometricMTF):
         super().__init__()
         self.setWindowTitle("Geometric Modulation Tranfer Function (MTF)")
 
-        self.fig = Figure(figsize=(9,6), facecolor="orange", edgecolor="black", linewidth=10, layout="constrained")
+        self.fig = Figure(figsize=(9,6), facecolor=None, edgecolor=None, linewidth=10, layout="constrained")
 
         self.canvas = FigureCanvas(self.fig)
         self.toolbar = NavigationToolbar(self.canvas, self)

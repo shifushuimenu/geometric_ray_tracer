@@ -249,10 +249,14 @@ class DisplayInterfaceSeidelDiagram(object):
 
 class DisplayInterfaceGeometricMTF(object):
     
-    def __init__(self):
-        pass
+    def __init__(self, geometric_MTFs: list, difflim_MTFs: list, line_spread_functions: list):
+        self.geometric_MTFs = geometric_MTFs
+        self.difflim_MTFs = difflim_MTFs
+        self.line_spread_functions = line_spread_functions
 
     def plot_MTF(self, num_fields: int, fig: Figure) -> Figure:
+
+        assert len(self.geometric_MTFs) == len(self.difflim_MTFs) == num_fields
 
         # MTF.py:
         # For each field position:
@@ -260,21 +264,32 @@ class DisplayInterfaceGeometricMTF(object):
         # 2. plot MTF for a sinusoidal pattern (aligned in x- or y-direction)
         #    plot MTF for a square (bar) test pattern
         # 3. Plot the line spread function in x- and y-direction
-        # For testing purposes, show the rayspot diagram from which the line spread function is derived.
+        # For testing purposes, show the line spread function.
+
+        color_x = "red"
+        color_y = "blue"
 
         axs = fig.subplots(2, num_fields)
+        nu0_d = np.max(self.difflim_MTFs[0][0])
+        print("nu0_d=", nu0_d)
+        nu0_g = np.max(self.geometric_MTFs[0]['x'][0])
+        print("nu0_g=", nu0_g)
         for f in range(num_fields):
-            NA = 1.0  # numerical aperture
-            wavelength = 456e-6 # wavelength in millimeters
-            # nu is the spatial frequency of the test pattern in cycles per millimeter
-            nu0 = 2*NA/wavelength # cut-off spatial frequency
-            phi = lambda nu : np.arccos(wavelength*nu/(2*NA))
-            # Ideal MTF for a spherical aperture and a sinusoidal test pattern
-            MTF_difflimited_sinus = lambda nu : (2.0/np.pi)*(phi(nu) - np.cos(phi(nu))*np.sin(phi(nu)))
-            nu_range = np.linspace(0, nu0, 100)
-            axs[0,f].plot(nu_range/nu0, MTF_difflimited_sinus(nu_range), label="diffraction limited")
+            axs[0,f].plot(self.difflim_MTFs[f][0]/nu0_d, self.difflim_MTFs[f][1], '--', label="diffraction limited")
+            axs[0,f].plot(self.geometric_MTFs[f]['x'][0]/nu0_g, self.geometric_MTFs[f]['x'][1], '-', color=color_x, label="geometric MTF (x)")
+            axs[0,f].plot(self.geometric_MTFs[f]['y'][0]/nu0_g, self.geometric_MTFs[f]['y'][1], '-', color=color_y, label="geometric MTF (y)")
             axs[0,f].set_xlabel(r"$\nu/\nu_0$")
             axs[0,f].grid(visible=True, which='major')
-            axs[0,f].legend(loc="best")
+            axs[1,f].plot(self.line_spread_functions[f]['x'][0], self.line_spread_functions[f]['x'][1], '-', color=color_x, label="line spread function (x)")
+            axs[1,f].plot(self.line_spread_functions[f]['y'][0], self.line_spread_functions[f]['y'][1], '-', color=color_y, label="line spread function (y)")
+            axs[1,f].set_xlabel(r"mm relative to chief")
+            if f == 0:                        
+                axs[0,f].legend(loc="best")
+                axs[1,f].legend(loc="best")
+            if f == 1:
+                axs[0,f].text(0.1, 0.2, r"$\nu_0 = \frac{2 NA}{\lambda}$="+f"{nu0_d:.2f} l/mm",transform=axs[0,f].transAxes)
+
+            axs[0,f].set_title(f"OBJ: MISSING mm \n"
+                               f"IMA: MISSING mm")                
 
         return fig

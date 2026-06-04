@@ -127,7 +127,8 @@ class RayTracer(object):
         self.lens_sequence = lens_sequence
 
         def _init_rayvecs_at_object(inclination_angles: Iterable[float], half_opening_angles: Iterable[float], 
-                                    num_concentrics: int=5, num_rays_per_1st_concentric: int=7):
+                                    #num_concentrics: int=5, num_rays_per_1st_concentric: int=7):
+                                    num_concentrics: int=26, num_rays_per_1st_concentric: int=7):
             """
             Parameters
             ----------
@@ -163,6 +164,7 @@ class RayTracer(object):
                     dg3[c] = dg3[0] / (c+1)
                     num_rays_per_concentric[c] = (c+1) * num_rays_per_1st_concentric
             num_nonmeridional_rays = 1 + np.sum(num_rays_per_concentric[:]) # includes chief ray at the center of the ray bundle
+            print("num_nonmeridional_rays=", num_nonmeridional_rays)
 
             # A ray bundle at field position f is a tuple (P_intersect[0:3,0:num_surfs,0:num_rays,f], rayvecs[0:3,0:num_surfs,0:num_rays,f]). 
             # The chief ray is is labelled as the first ray: (P_intersect[0:3,0:num_surfs,0,f], rayvecs[0:3,0:num_surfs,0,f])
